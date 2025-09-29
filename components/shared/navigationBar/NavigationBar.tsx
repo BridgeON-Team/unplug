@@ -1,3 +1,4 @@
+import { router, usePathname } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { BottomNavigationBarProps } from "./NavigationBar.type";
@@ -13,13 +14,24 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
   activeTab,
   onTabPress,
 }) => {
+  const pathname = usePathname();
+
+  const getCurrentActiveTab = () => {
+    if (pathname === "/home") return "home";
+    if (pathname === "/digital-detox") return "tools";
+    if (pathname === "/chatbot") return "chatbot";
+    if (pathname === "/my-page") return "my";
+    if (pathname === "/meetings" || pathname === "/" || pathname.includes("/(tabs)")) return "meetings";
+    return activeTab;
+  };
   const tabs = [
     {
-      id: "community",
+      id: "meetings",
       label: "모임",
       icon: CommunityIcon,
       width: 38,
       height: 36,
+      route: "/meetings",
     },
     {
       id: "chatbot",
@@ -27,6 +39,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
       icon: ChatbotIcon,
       width: 36,
       height: 36,
+      route: "/chatbot",
     },
     {
       id: "home",
@@ -34,6 +47,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
       icon: HomeIcon,
       width: 34,
       height: 38,
+      route: "/home",
     },
     {
       id: "tools",
@@ -41,6 +55,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
       icon: TimerIcon,
       width: 35,
       height: 36,
+      route: "/digital-detox",
     },
     {
       id: "my",
@@ -48,18 +63,32 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
       icon: MyIcon,
       width: 30,
       height: 31,
+      route: "/my-page",
     },
   ];
+
+  const currentActiveTab = getCurrentActiveTab();
+
+  const handleTabPress = (tab: typeof tabs[0]) => {
+    onTabPress(tab.id);
+    try {
+      router.push(tab.route as any);
+    } catch (error) {
+      console.log("Navigation error:", error);
+    }
+  };
 
   return (
     <View style={styles.container}>
       {tabs.map((tab) => {
         const IconComponent = tab.icon;
+        const isActive = currentActiveTab === tab.id;
+
         return (
           <TouchableOpacity
             key={tab.id}
             style={styles.tab}
-            onPress={() => onTabPress(tab.id)}
+            onPress={() => handleTabPress(tab)}
             activeOpacity={0.7}
           >
             <View style={styles.iconContainer}>
@@ -69,7 +98,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({
               <Text
                 style={[
                   styles.label,
-                  activeTab === tab.id && styles.activeLabel,
+                  isActive && styles.activeLabel,
                 ]}
               >
                 {tab.label}
