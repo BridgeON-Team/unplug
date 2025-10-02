@@ -16,7 +16,7 @@ interface AppUsageItem {
 const mockAppUsageData: AppUsageItem[] = [
     { id: "1", name: "네이버 웹툰", icon: <AntDesign name="mobile1" size={24} color="#333" />, timeSpent: "01:21:13", percentage: 71, color: "#9AE066", displayType: 'bar' },
     { id: "2", name: "instagram", icon: <AntDesign name="instagram" size={24} color="#E4405F" />, timeSpent: "01:00:13", percentage: 50, color: "#FF9500", displayType: 'bar' },
-    { id: "3", name: "YouTube", icon: <AntDesign name="youtube" size={24} color="#FF0000" />, timeSpent: "00:21:13", percentage: 16, color: "#FF3B30", displayType: 'circle' }
+    { id: "3", name: "YouTube", icon: <AntDesign name="youtube" size={24} color="#FF0000" />, timeSpent: "00:21:13", percentage: 16, color: "#FF3B30", displayType: 'bar' }
 ];
 
 interface AppUsageSectionProps {
@@ -58,9 +58,10 @@ export default function AppUsageSection({
                                                     styles.progressBarFill,
                                                     { width: `${app.percentage}%`, backgroundColor: app.color }
                                                 ]}
-                                            >
-                                                <Text style={styles.progressBarText}>{app.percentage}% 시간 : {app.timeSpent}</Text>
-                                            </View>
+                                            />
+                                            <Text style={styles.progressBarTextFixed}>
+                                                {app.percentage}% 남은 시간 : {app.timeSpent}
+                                            </Text>
                                         </View>
                                     </View>
                                 )}
@@ -146,10 +147,8 @@ const styles = StyleSheet.create({
         backgroundColor: theme.colors.gray[100],
         borderRadius: 20,
         position: 'relative',
-        flexDirection: 'row',
+        justifyContent: 'center',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: theme.spacing.sm,
     },
     progressBarFill: {
         position: 'absolute',
@@ -157,14 +156,15 @@ const styles = StyleSheet.create({
         top: 0,
         height: '100%',
         borderRadius: 20,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: theme.spacing.sm,
     },
-    progressBarText: {
-        color: theme.colors.white,
+    progressBarTextFixed: {
+        color: theme.colors.text,
         fontSize: theme.typography.caption.fontSize,
         fontWeight: "600",
+        zIndex: 1,
+        textShadowColor: 'rgba(255, 255, 255, 0.8)',
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 4,
     },
     percentageText: {
         fontSize: theme.typography.caption.fontSize,
