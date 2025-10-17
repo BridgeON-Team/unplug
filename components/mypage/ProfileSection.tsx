@@ -1,30 +1,74 @@
+import { useAuthContext } from "@/src/contexts/AuthContext";
+import { useMyPage } from "@/src/hooks/useMyPage";
 import { theme } from "@/src/styles/theme";
 import React from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 // SVG 아이콘 import
 const CameraIcon = require("@/assets/images/common/chat_icon.svg").default;
 
-// 샘플 데이터
-const sampleProfile = {
-  nickname: "닉네임",
-  tendency: "성향 분류",
-  profileImage:
-    "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=400",
-  isVerified: true,
-};
-
 export default function ProfileSection() {
+  const { username } = useAuthContext();
+  const { userInfo, surveyResult, isLoading, error } = useMyPage(username);
+
   const handleEditProfile = () => {
-    console.log("Edit profile pressed");
+    Alert.alert("프로필 편집", "프로필 편집 기능은 준비 중입니다.");
   };
+
+  // 로딩 상태
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>프로필 정보를 불러오는 중...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // 에러 상태
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // 사용자 정보가 없는 경우
+  if (!userInfo) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>
+            사용자 정보를 불러올 수 없습니다.
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <View style={styles.profileContainer}>
         <View style={styles.profileImageContainer}>
           <Image
-            source={{ uri: sampleProfile.profileImage }}
+            source={{
+              uri:
+                userInfo.profileImgUrl ||
+                "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=400",
+            }}
             style={styles.profileImage}
             defaultSource={require("@/assets/images/icon.png")}
           />
@@ -38,14 +82,16 @@ export default function ProfileSection() {
 
         <View style={styles.profileInfo}>
           <View style={styles.nicknameContainer}>
-            <Text style={styles.nickname}>{sampleProfile.nickname}</Text>
-            {sampleProfile.isVerified && (
-              <View style={styles.checkmark}>
-                <Text style={styles.checkmarkText}>✓</Text>
-              </View>
-            )}
+            <Text style={styles.nickname}>{userInfo.nickname}</Text>
+            <View style={styles.checkmark}>
+              <Text style={styles.checkmarkText}>✓</Text>
+            </View>
           </View>
-          <Text style={styles.tendency}>{sampleProfile.tendency}</Text>
+          <Text style={styles.tendency}>
+            {surveyResult
+              ? `${surveyResult.type} - ${surveyResult.description}`
+              : "설문을 완료해주세요"}
+          </Text>
         </View>
       </View>
     </View>
@@ -112,5 +158,26 @@ const styles = StyleSheet.create({
   tendency: {
     fontSize: theme.typography.caption.fontSize,
     color: theme.colors.gray[500],
+    textAlign: "center",
+  },
+  loadingContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: theme.spacing.lg,
+  },
+  loadingText: {
+    marginTop: theme.spacing.sm,
+    fontSize: theme.typography.body.fontSize,
+    color: theme.colors.gray[500],
+  },
+  errorContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: theme.spacing.lg,
+  },
+  errorText: {
+    fontSize: theme.typography.body.fontSize,
+    color: theme.colors.error,
+    textAlign: "center",
   },
 });

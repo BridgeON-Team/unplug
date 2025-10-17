@@ -9,6 +9,7 @@ import { StatusBar } from "expo-status-bar";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/hooks/useColorScheme";
+import { AuthProvider } from "@/src/contexts/AuthContext";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -22,15 +23,17 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="home" options={{ headerShown: false }} />
-        <Stack.Screen name="chatbot" options={{ headerShown: false }} />
-        <Stack.Screen name="digital-detox" options={{ headerShown: false }} />
-        <Stack.Screen name="meetings" options={{ headerShown: false }} />
-        <Stack.Screen name="my-page" options={{ headerShown: false }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <AuthProvider>
+      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <Stack>
+          <Stack.Screen name="home" options={{ headerShown: false }} />
+          <Stack.Screen name="chatbot" options={{ headerShown: false }} />
+          <Stack.Screen name="digital-detox" options={{ headerShown: false }} />
+          <Stack.Screen name="meetings" options={{ headerShown: false }} />
+          <Stack.Screen name="my-page" options={{ headerShown: false }} />
+        </Stack>
+        <StatusBar style="auto" />
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
