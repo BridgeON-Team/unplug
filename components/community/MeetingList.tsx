@@ -1,3 +1,4 @@
+import ChallengeList from "@/components/challenge/ChallengeList";
 import { theme } from "@/src/styles/theme";
 import React, { useState } from "react";
 import {
@@ -61,16 +62,49 @@ const sampleMeetings = [
   },
 ];
 
+interface Challenge {
+  id: string;
+  title: string;
+  completed: boolean;
+  createdAt: Date;
+}
+
 export default function MeetingList() {
-  const [activeTab, setActiveTab] = useState<"all" | "participating">("all");
+  const [activeTab, setActiveTab] = useState<
+    "all" | "participating" | "challenges"
+  >("all");
+  const [challenges, setChallenges] = useState<Challenge[]>([
+    {
+      id: "1",
+      title: "스마트폰 2시간 동안 그만 보기",
+      completed: false,
+      createdAt: new Date(),
+    },
+    {
+      id: "2",
+      title: "30분간 산책하기",
+      completed: true,
+      createdAt: new Date(),
+    },
+    {
+      id: "3",
+      title: "책 10페이지 읽기",
+      completed: false,
+      createdAt: new Date(),
+    },
+  ]);
 
   const filteredMeetings =
     activeTab === "all"
       ? sampleMeetings
       : sampleMeetings.filter((_, index) => index % 2 === 0); // 임시로 짝수 인덱스만 참여중으로 표시
 
-  const handleTabPress = (tab: "all" | "participating") => {
+  const handleTabPress = (tab: "all" | "participating" | "challenges") => {
     setActiveTab(tab);
+  };
+
+  const handleChallengesChange = (newChallenges: Challenge[]) => {
+    setChallenges(newChallenges);
   };
 
   const renderMeetingCard = ({ item }: { item: any }) => (
@@ -118,16 +152,37 @@ export default function MeetingList() {
             참여중
           </Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tab, activeTab === "challenges" && styles.activeTab]}
+          onPress={() => handleTabPress("challenges")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === "challenges" && styles.activeTabText,
+            ]}
+          >
+            챌린지
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      {/* 모임 목록 */}
-      <FlatList
-        data={filteredMeetings}
-        renderItem={renderMeetingCard}
-        keyExtractor={(item) => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContainer}
-      />
+      {/* 콘텐츠 영역 */}
+      {activeTab === "challenges" ? (
+        <ChallengeList
+          challenges={challenges}
+          onChallengesChange={handleChallengesChange}
+        />
+      ) : (
+        <FlatList
+          data={filteredMeetings}
+          renderItem={renderMeetingCard}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContainer}
+        />
+      )}
     </View>
   );
 }
@@ -140,7 +195,6 @@ const styles = StyleSheet.create({
   tabContainer: {
     flexDirection: "row",
     marginHorizontal: theme.spacing.md,
-    marginTop: theme.spacing.md,
     marginBottom: theme.spacing.sm,
     backgroundColor: theme.colors.gray[100],
     borderRadius: theme.borderRadius.sm,
