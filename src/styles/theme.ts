@@ -4,6 +4,7 @@ export const theme = {
     error: "#C32323",
     gray: {
       100: "#F5F5F5",
+      200: "#E6E6E6",
       300: "#D9D9D9",
       500: "#9E9E9E",
       700: "#616161",

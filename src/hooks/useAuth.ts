@@ -1,30 +1,6 @@
 import { useEffect, useState } from "react";
 import { authApi, UserInfo } from "../services/api";
-
-// AsyncStorage 대신 임시로 localStorage 사용 (개발용)
-const AsyncStorage = {
-  getItem: async (key: string) => {
-    if (typeof window !== "undefined" && window.localStorage) {
-      return window.localStorage.getItem(key);
-    }
-    return null;
-  },
-  setItem: async (key: string, value: string) => {
-    if (typeof window !== "undefined" && window.localStorage) {
-      window.localStorage.setItem(key, value);
-    }
-  },
-  removeItem: async (key: string) => {
-    if (typeof window !== "undefined" && window.localStorage) {
-      window.localStorage.removeItem(key);
-    }
-  },
-  multiRemove: async (keys: string[]) => {
-    if (typeof window !== "undefined" && window.localStorage) {
-      keys.forEach((key) => window.localStorage.removeItem(key));
-    }
-  },
-};
+import { AuthUtils } from "@/utils/auth";
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -52,17 +28,16 @@ export const useAuth = () => {
 
   const checkStoredAuth = async () => {
     try {
-      const accessToken = await AsyncStorage.getItem("accessToken");
-      const refreshToken = await AsyncStorage.getItem("refreshToken");
-      const username = await AsyncStorage.getItem("username");
+      const tokens = await AuthUtils.getTokens();
+      const storedUsername = await AuthUtils.getUsername();
 
-      if (accessToken && refreshToken && username) {
+      if (tokens?.accessToken) {
         setAuthState((prev) => ({
           ...prev,
           isAuthenticated: true,
-          accessToken,
-          refreshToken,
-          username,
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken ?? null,
+          username: storedUsername,
           isLoading: false,
         }));
       } else {
@@ -82,22 +57,23 @@ export const useAuth = () => {
 
   const login = async (username: string, password: string) => {
     try {
-      const response = await authApi.login(username, password);
+      const trimmedUsername = username.trim();
+      const response = await authApi.login(trimmedUsername, password);
 
       if (response.success) {
         const { accessToken, refreshToken } = response.data;
-
-        // 토큰 저장
-        await AsyncStorage.setItem("accessToken", accessToken);
-        await AsyncStorage.setItem("refreshToken", refreshToken);
-        await AsyncStorage.setItem("username", username);
+        await AuthUtils.saveTokens({
+          accessToken,
+          refreshToken,
+          username: trimmedUsername,
+        });
 
         setAuthState({
           isAuthenticated: true,
           user: null, // 사용자 정보는 별도로 조회
           accessToken,
           refreshToken,
-          username,
+          username: trimmedUsername,
           isLoading: false,
         });
 
@@ -119,12 +95,7 @@ export const useAuth = () => {
     } catch (error) {
       console.error("로그아웃 API 호출 오류:", error);
     } finally {
-      // 로컬 저장소 정리
-      await AsyncStorage.multiRemove([
-        "accessToken",
-        "refreshToken",
-        "username",
-      ]);
+      await AuthUtils.removeToken();
 
       setAuthState({
         isAuthenticated: false,
@@ -168,8 +139,11 @@ export const useAuth = () => {
       if (response.success) {
         const { accessToken, refreshToken } = response.data;
 
-        await AsyncStorage.setItem("accessToken", accessToken);
-        await AsyncStorage.setItem("refreshToken", refreshToken);
+        await AuthUtils.saveTokens({
+          accessToken,
+          refreshToken,
+          username: authState.username ?? undefined,
+        });
 
         setAuthState((prev) => ({
           ...prev,

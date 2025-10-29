@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "@/constants/env";
+import { AuthUtils } from "@/utils/auth";
 
 // API 기본 설정 및 공통 함수들
 const BASE_URL = API_BASE_URL.replace(/\/$/, "");
@@ -67,29 +68,130 @@ export interface ChatMessageDto {
 }
 
 // API 호출을 위한 공통 함수
+interface AuthenticatedRequestInit extends RequestInit {
+  skipAuth?: boolean;
+  retry?: boolean;
+}
+
+const refreshAccessToken = async (): Promise<boolean> => {
+  try {
+    const refreshToken = await AuthUtils.getRefreshToken();
+
+    if (!refreshToken) {
+      return false;
+    }
+
+    const response = await fetch(`${BASE_URL}/user/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ refreshToken }),
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error(`Refresh token request failed: ${response.status}`);
+    }
+
+    const data: ApiResponse<{
+      accessToken: string;
+      refreshToken: string;
+    }> = await response.json();
+
+    const accessToken = data.data?.accessToken;
+    const newRefreshToken = data.data?.refreshToken ?? refreshToken;
+
+    if (data.success && accessToken) {
+      await AuthUtils.saveTokens({
+        accessToken,
+        refreshToken: newRefreshToken,
+      });
+      return true;
+    }
+
+    console.warn("Refresh token response was not successful:", data.message);
+    await AuthUtils.removeToken();
+    return false;
+  } catch (error) {
+    console.error("Token refresh failed:", error);
+    await AuthUtils.removeToken();
+    return false;
+  }
+};
+
+let refreshPromise: Promise<boolean> | null = null;
+
+const attemptTokenRefresh = async (): Promise<boolean> => {
+  if (!refreshPromise) {
+    refreshPromise = refreshAccessToken();
+    refreshPromise.finally(() => {
+      refreshPromise = null;
+    });
+  }
+
+  return refreshPromise;
+};
+
+interface ApiRequestError extends Error {
+  status?: number;
+  response?: Response;
+}
+
 const apiCall = async <T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: AuthenticatedRequestInit = {}
 ): Promise<ApiResponse<T>> => {
   const url = `${BASE_URL}${endpoint}`;
 
-  const defaultHeaders = {
+  const { skipAuth = false, retry = true, headers: optionHeaders, ...rest } =
+    options;
+
+  const headers = new Headers({
     "Content-Type": "application/json",
-  };
+  });
+
+  if (optionHeaders) {
+    const merged = new Headers(optionHeaders as HeadersInit);
+    merged.forEach((value, key) => {
+      headers.set(key, value);
+    });
+  }
+
+  if (!skipAuth) {
+    const accessToken = await AuthUtils.getToken();
+    if (accessToken) {
+      headers.set("Authorization", `Bearer ${accessToken}`);
+    }
+  }
 
   const config: RequestInit = {
-    ...options,
-    headers: {
-      ...defaultHeaders,
-      ...options.headers,
-    },
+    ...rest,
+    headers,
+    credentials: "include",
   };
 
   try {
     const response = await fetch(url, config);
 
+    if (response.status === 401 && !skipAuth && retry) {
+      const refreshed = await attemptTokenRefresh();
+
+      if (refreshed) {
+        return apiCall<T>(endpoint, {
+          ...options,
+          retry: false,
+        });
+      }
+    }
+
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const error: ApiRequestError = new Error(
+        `HTTP error! status: ${response.status}`
+      );
+      error.status = response.status;
+      error.response = response;
+      throw error;
     }
 
     const data = await response.json();
@@ -100,42 +202,25 @@ const apiCall = async <T>(
   }
 };
 
-// 인증 헤더를 포함한 API 호출
-const apiCallWithAuth = async <T>(
-  endpoint: string,
-  username: string,
-  options: RequestInit = {}
-): Promise<ApiResponse<T>> => {
-  return apiCall<T>(endpoint, {
-    ...options,
-    headers: {
-      ...options.headers,
-      "X-Auth-Username": username,
-    },
-  });
-};
-
 // 마이페이지 관련 API 함수들
 export const myPageApi = {
   // 사용자 정보 조회
-  getUserInfo: async (username: string): Promise<ApiResponse<UserInfo>> => {
-    return apiCallWithAuth<UserInfo>("/user/info", username, {
+  getUserInfo: async (): Promise<ApiResponse<UserInfo>> => {
+    return apiCall<UserInfo>("/user/info", {
       method: "GET",
     });
   },
 
   // 설문 결과 조회
-  getSurveyResult: async (
-    username: string
-  ): Promise<ApiResponse<SurveyResult>> => {
-    return apiCallWithAuth<SurveyResult>("/user/survey/result", username, {
+  getSurveyResult: async (): Promise<ApiResponse<SurveyResult>> => {
+    return apiCall<SurveyResult>("/user/survey/result", {
       method: "GET",
     });
   },
 
   // 회원 탈퇴
-  deleteUser: async (username: string): Promise<ApiResponse<object>> => {
-    return apiCallWithAuth<object>("/user/withdraw", username, {
+  deleteUser: async (): Promise<ApiResponse<object>> => {
+    return apiCall<object>("/user/withdraw", {
       method: "DELETE",
     });
   },
@@ -145,20 +230,49 @@ export const myPageApi = {
 export const surveyApi = {
   // 설문 문항 조회
   getSurveyQuestions: async (): Promise<SurveyQuestion[]> => {
-    const response = await apiCall<SurveyQuestion[]>("/user/survey/questions", {
+    const response = await apiCall<
+      SurveyQuestion[] | ApiResponse<SurveyQuestion[]>
+    >("/user/survey/questions", {
       method: "GET",
+      retry: false,
     });
-    return response.data;
+
+    if (Array.isArray(response)) {
+      return response;
+    }
+
+    if (Array.isArray(response?.data)) {
+      return response.data;
+    }
+
+    throw new Error("Unexpected survey questions response format");
   },
 
   // 설문 제출
   submitSurvey: async (
     surveyData: SurveyRequest
   ): Promise<ApiResponse<SurveyResult>> => {
-    return apiCall<SurveyResult>("/user/survey/submit", {
+    const response = await apiCall<
+      SurveyResult | ApiResponse<SurveyResult>
+    >("/user/survey/submit", {
       method: "POST",
       body: JSON.stringify(surveyData),
     });
+
+    if (
+      typeof response === "object" &&
+      response !== null &&
+      "success" in response &&
+      "data" in response
+    ) {
+      return response as ApiResponse<SurveyResult>;
+    }
+
+    return {
+      success: true,
+      message: "",
+      data: response as SurveyResult,
+    };
   },
 };
 
@@ -174,6 +288,8 @@ export const authApi = {
       {
         method: "POST",
         body: JSON.stringify({ username, password }),
+        skipAuth: true,
+        retry: false,
       }
     );
   },
@@ -188,6 +304,8 @@ export const authApi = {
     return apiCall<UserInfo>("/user/signup", {
       method: "POST",
       body: JSON.stringify(userData),
+      skipAuth: true,
+      retry: false,
     });
   },
 
@@ -200,6 +318,8 @@ export const authApi = {
       {
         method: "POST",
         body: JSON.stringify({ refreshToken }),
+        skipAuth: true,
+        retry: false,
       }
     );
   },

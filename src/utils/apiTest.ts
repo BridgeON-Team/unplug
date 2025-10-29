@@ -31,16 +31,17 @@ export const testApiConnection = async () => {
 // 인증이 필요한 API 테스트 (실제 사용자 정보가 있을 때만)
 export const testAuthenticatedApi = async (username: string) => {
   console.log("=== 인증 API 테스트 시작 ===");
+  console.log(`테스트 계정: ${username}`);
 
   try {
     // 1. 사용자 정보 조회 테스트
     console.log("1. 사용자 정보 조회 테스트...");
-    const userInfo = await myPageApi.getUserInfo(username);
+    const userInfo = await myPageApi.getUserInfo();
     console.log("사용자 정보 조회 성공:", userInfo);
 
     // 2. 설문 결과 조회 테스트
     console.log("2. 설문 결과 조회 테스트...");
-    const surveyResult = await myPageApi.getSurveyResult(username);
+    const surveyResult = await myPageApi.getSurveyResult();
     console.log("설문 결과 조회 성공:", surveyResult);
 
     console.log("=== 인증 API 테스트 완료 ===");

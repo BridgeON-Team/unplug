@@ -1,8 +1,9 @@
-import { authApi } from "@/src/services/api";
+import { useAuthContext } from "@/src/contexts/AuthContext";
 import { theme } from "@/src/styles/theme";
 import { AuthUtils } from "@/utils/auth";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,9 +19,33 @@ import {
 import UnplugLogo from "@/assets/images/common/unplug_logo.svg";
 
 export default function LoginScreen() {
+  const { login } = useAuthContext();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+
+      const redirectIfAuthenticated = async () => {
+        try {
+          const authenticated = await AuthUtils.isAuthenticated();
+          if (authenticated && isMounted) {
+            router.replace("/home");
+          }
+        } catch (error) {
+          console.error("Login screen auth check failed:", error);
+        }
+      };
+
+      redirectIfAuthenticated();
+
+      return () => {
+        isMounted = false;
+      };
+    }, [])
+  );
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
@@ -32,22 +57,13 @@ export default function LoginScreen() {
 
     try {
       const trimmedUsername = username.trim();
-      const response = await authApi.login(trimmedUsername, password);
+      const result = await login(trimmedUsername, password);
 
-      if (response.success && response.data?.accessToken) {
-        const saved = await AuthUtils.saveTokens({
-          accessToken: response.data.accessToken,
-          refreshToken: response.data.refreshToken,
-        });
-
-        if (saved) {
-          router.replace("/home");
-        } else {
-          Alert.alert("오류", "토큰 저장 중 문제가 발생했습니다.");
-        }
+      if (result.success) {
+        router.replace("/home");
       } else {
         const message =
-          response.message || "아이디 또는 비밀번호가 올바르지 않습니다.";
+          result.message || "아이디 또는 비밀번호가 올바르지 않습니다.";
         Alert.alert("로그인 실패", message);
       }
     } catch (error) {

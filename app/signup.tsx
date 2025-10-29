@@ -1,7 +1,9 @@
 import { authApi } from "@/src/services/api";
 import { theme } from "@/src/styles/theme";
+import { AuthUtils } from "@/utils/auth";
+import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -60,6 +62,29 @@ export default function SignupScreen() {
     !isLoading &&
     !isCheckingAvailability;
 
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+
+      const redirectIfAuthenticated = async () => {
+        try {
+          const authenticated = await AuthUtils.isAuthenticated();
+          if (authenticated && isMounted) {
+            router.replace("/home");
+          }
+        } catch (error) {
+          console.error("Signup screen auth check failed:", error);
+        }
+      };
+
+      redirectIfAuthenticated();
+
+      return () => {
+        isMounted = false;
+      };
+    }, [])
+  );
+
   const handleUsernameChange = (text: string) => {
     setUsername(text.replace(/\s+/g, ""));
     setUsernameStatus({ status: "idle" });
@@ -68,45 +93,43 @@ export default function SignupScreen() {
   const checkUsernameAvailability = async (options?: {
     silent?: boolean;
   }): Promise<boolean> => {
-    setUsernameStatus({ status: "available", message: "사용 가능한 아이디입니다." });
-    return true; // API 오류로 인한 return true
-    // const trimmed = username.trim();
+    const trimmed = username.trim();
 
-    // if (!trimmed) {
-    //   setUsernameStatus({ status: "idle" });
-    //   if (!options?.silent) {
-    //     Alert.alert("확인 필요", "아이디를 먼저 입력해주세요.");
-    //   }
-    //   return false;
-    // }
+    if (!trimmed) {
+      setUsernameStatus({ status: "idle" });
+      if (!options?.silent) {
+        Alert.alert("확인 필요", "아이디를 먼저 입력해주세요.");
+      }
+      return false;
+    }
 
-    // setUsernameStatus({ status: "checking" });
+    setUsernameStatus({ status: "checking" });
 
-    // try {
-    //   const response = await authApi.checkUsername(trimmed);
+    try {
+      const response = await authApi.checkUsername(trimmed);
 
-    //   if (response.success) {
-    //     const message =
-    //       response.message || response.data || "사용 가능한 아이디입니다.";
-    //     setUsernameStatus({ status: "available", message });
-    //     if (!options?.silent) {
-    //       Alert.alert("확인 완료", message);
-    //     }
-    //     return true;
-    //   }
+      if (response.success) {
+        const message =
+          response.message || response.data || "사용 가능한 아이디입니다.";
+        setUsernameStatus({ status: "available", message });
+        if (!options?.silent) {
+          Alert.alert("확인 완료", message);
+        }
+        return true;
+      }
 
-    //   const failureMessage =
-    //     response.message || response.data || "이미 사용 중인 아이디입니다.";
-    //   setUsernameStatus({ status: "unavailable", message: failureMessage });
-    //   Alert.alert("확인 필요", failureMessage);
-    //   return false;
-    // } catch (error) {
-    //   console.error("Username availability check error:", error);
-    //   const errorMessage = "아이디 확인 중 문제가 발생했습니다.";
-    //   setUsernameStatus({ status: "error", message: errorMessage });
-    //   Alert.alert("오류", errorMessage);
-    //   return false;
-    // }
+      const failureMessage =
+        response.message || response.data || "이미 사용 중인 아이디입니다.";
+      setUsernameStatus({ status: "unavailable", message: failureMessage });
+      Alert.alert("확인 필요", failureMessage);
+      return false;
+    } catch (error) {
+      console.error("Username availability check error:", error);
+      const errorMessage = "아이디 확인 중 문제가 발생했습니다.";
+      setUsernameStatus({ status: "error", message: errorMessage });
+      Alert.alert("오류", errorMessage);
+      return false;
+    }
   };
 
   const handleCheckUsername = () => {

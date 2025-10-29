@@ -8,6 +8,19 @@ interface MyPageState {
   error: string | null;
 }
 
+const isUserInfo = (value: unknown): value is UserInfo => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const user = value as Partial<UserInfo>;
+  return (
+    typeof user.userId === "number" &&
+    typeof user.username === "string" &&
+    typeof user.nickname === "string"
+  );
+};
+
 export const useMyPage = (username: string | null) => {
   const [state, setState] = useState<MyPageState>({
     userInfo: null,
@@ -18,26 +31,35 @@ export const useMyPage = (username: string | null) => {
 
   // 사용자 정보 조회
   const fetchUserInfo = async () => {
-    if (!username) return;
-
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      const response = await myPageApi.getUserInfo(username);
+      const response = await myPageApi.getUserInfo();
 
-      if (response.success) {
+      const responseData =
+        ("data" in response && isUserInfo(response.data)
+          ? response.data
+          : null) ?? (isUserInfo(response) ? response : null);
+
+      if (responseData) {
         setState((prev) => ({
           ...prev,
-          userInfo: response.data,
+          userInfo: responseData,
           isLoading: false,
+          error: null,
         }));
-      } else {
-        setState((prev) => ({
-          ...prev,
-          error: response.message,
-          isLoading: false,
-        }));
+        return;
       }
+
+      const errorMessage =
+        (typeof response?.message === "string" && response.message) ||
+        "사용자 정보를 불러오는데 실패했습니다.";
+
+      setState((prev) => ({
+        ...prev,
+        error: errorMessage,
+        isLoading: false,
+      }));
     } catch (error) {
       console.error("사용자 정보 조회 오류:", error);
       setState((prev) => ({
@@ -50,10 +72,8 @@ export const useMyPage = (username: string | null) => {
 
   // 설문 결과 조회
   const fetchSurveyResult = async () => {
-    if (!username) return;
-
     try {
-      const response = await myPageApi.getSurveyResult(username);
+      const response = await myPageApi.getSurveyResult();
 
       if (response.success) {
         setState((prev) => ({
@@ -62,6 +82,15 @@ export const useMyPage = (username: string | null) => {
         }));
       }
     } catch (error) {
+      const status = (error as { status?: number }).status;
+      if (status === 404) {
+        setState((prev) => ({
+          ...prev,
+          surveyResult: null,
+        }));
+        return;
+      }
+
       console.error("설문 결과 조회 오류:", error);
       // 설문 결과는 필수가 아니므로 에러를 상태에 저장하지 않음
     }
@@ -69,11 +98,8 @@ export const useMyPage = (username: string | null) => {
 
   // 회원 탈퇴
   const deleteUser = async () => {
-    if (!username)
-      return { success: false, message: "사용자 정보가 없습니다." };
-
     try {
-      const response = await myPageApi.deleteUser(username);
+      const response = await myPageApi.deleteUser();
 
       if (response.success) {
         return { success: true, message: "회원 탈퇴가 완료되었습니다." };
