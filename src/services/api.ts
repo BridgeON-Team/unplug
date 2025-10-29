@@ -1,5 +1,7 @@
+import { API_BASE_URL } from "@/constants/env";
+
 // API 기본 설정 및 공통 함수들
-const BASE_URL = "http://localhost:8080";
+const BASE_URL = API_BASE_URL.replace(/\/$/, "");
 
 // Mock 모드 설정 (백엔드가 없을 때 true로 설정)
 // const USE_MOCK_DATA = false;
