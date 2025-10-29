@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 
 import ChartSection from "@/components/mypage/ChartSection";
 import ProfileSection from "@/components/mypage/ProfileSection";
-import SettingsSection from "@/components/mypage/SettingSection";
+import SettingsSection from "@/components/mypage/SettingsSection";
 import BottomNavigationBar from "@/components/shared/navigationBar/NavigationBar";
 import TopBar from "@/components/shared/navigationBar/TopBar";
 import { theme } from "@/src/styles/theme";

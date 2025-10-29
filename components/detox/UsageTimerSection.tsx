@@ -1,87 +1,179 @@
 import { theme } from "@/src/styles/theme";
-import React, { useState } from "react";
-import { StyleSheet, Text, View, TouchableOpacity, Slider } from "react-native";
-import { AntDesign } from '@expo/vector-icons';
+import React, { useCallback, useMemo, useState } from "react";
+import {
+  LayoutChangeEvent,
+  PanResponder,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { AntDesign } from "@expo/vector-icons";
 
 interface UsageTimerSectionProps {
     initialTime?: number; // in minutes
     onTimeChange?: (time: number) => void;
 }
 
+const MIN_TIME = 0;
+const MAX_TIME = 180;
+const THUMB_SIZE = 20;
+
+const clamp = (value: number, min: number, max: number) => {
+  return Math.min(max, Math.max(min, value));
+};
+
 export default function UsageTimerSection({
-    initialTime = 60,
-    onTimeChange
+  initialTime = 60,
+  onTimeChange,
 }: UsageTimerSectionProps) {
-    const [selectedTime, setSelectedTime] = useState(initialTime);
+  const [selectedTime, setSelectedTime] = useState(initialTime);
+  const [trackWidth, setTrackWidth] = useState(0);
 
-    const formatTime = (minutes: number) => {
-        const hours = Math.floor(minutes / 60);
-        const mins = minutes % 60;
-        return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:00`;
-    };
+  const ratio =
+    trackWidth === 0
+      ? 0
+      : clamp((selectedTime - MIN_TIME) / (MAX_TIME - MIN_TIME), 0, 1);
 
-    const handleTimeChange = (value: number) => {
-        setSelectedTime(value);
-        onTimeChange?.(value);
-    };
+  const updateTimeFromPosition = useCallback(
+    (x: number) => {
+      if (trackWidth <= 0) {
+        return;
+      }
 
-    return (
-        <View style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.title}>앱 차단</Text>
-                <View style={styles.filterButtons}>
-                    <TouchableOpacity style={[styles.filterButton, styles.activeFilter]}>
-                        <Text style={[styles.filterText, styles.activeFilterText]}>전체</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.filterButton}>
-                        <Text style={styles.filterText}>차단중</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
+      const clampedX = clamp(x, 0, trackWidth);
+      const nextValue = Math.round(
+        MIN_TIME + (clampedX / trackWidth) * (MAX_TIME - MIN_TIME)
+      );
 
-            <View style={styles.timerContainer}>
-                <View style={styles.appItem}>
-                    <View style={styles.appInfo}>
-                        <AntDesign name="mobile1" size={24} color="#333" style={styles.appIcon} />
-                        <Text style={styles.appName}>네이버 웹툰</Text>
-                        <View style={styles.timeIndicator}>
-                            <Text style={styles.timeText}>보낸 시간 : 01:21:13</Text>
-                            <Text style={styles.percentage}>71%</Text>
-                        </View>
-                    </View>
-                </View>
+      setSelectedTime(nextValue);
+      onTimeChange?.(nextValue);
+    },
+    [onTimeChange, trackWidth]
+  );
 
-                <Text style={styles.sectionTitle}>사용 시간 설정</Text>
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (event) => {
+          updateTimeFromPosition(event.nativeEvent.locationX);
+        },
+        onPanResponderMove: (event) => {
+          updateTimeFromPosition(event.nativeEvent.locationX);
+        },
+      }),
+    [updateTimeFromPosition]
+  );
 
-                <View style={styles.timeDisplay}>
-                    <Text style={styles.timeDisplayText}>{formatTime(selectedTime)}</Text>
-                </View>
+  const handleTrackLayout = useCallback((event: LayoutChangeEvent) => {
+    setTrackWidth(event.nativeEvent.layout.width);
+  }, []);
 
-                <View style={styles.sliderContainer}>
-                    <Slider
-                        style={styles.slider}
-                        minimumValue={0}
-                        maximumValue={180}
-                        value={selectedTime}
-                        onValueChange={handleTimeChange}
-                        step={1}
-                        minimumTrackTintColor={theme.colors.primary}
-                        maximumTrackTintColor={theme.colors.gray[300]}
-                        thumbStyle={styles.sliderThumb}
-                    />
-                </View>
+  const formatTime = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${String(hours).padStart(2, "0")}:${String(mins).padStart(
+      2,
+      "0"
+    )}:00`;
+  };
 
-                <View style={styles.buttonContainer}>
-                    <TouchableOpacity style={styles.cancelButton}>
-                        <Text style={styles.cancelButtonText}>취소</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.addButton}>
-                        <Text style={styles.addButtonText}>추가</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
+  const handleStepChange = useCallback(
+    (delta: number) => {
+      const nextValue = clamp(selectedTime + delta, MIN_TIME, MAX_TIME);
+      setSelectedTime(nextValue);
+      onTimeChange?.(nextValue);
+    },
+    [onTimeChange, selectedTime]
+  );
+
+  const activeTrackWidth = ratio * trackWidth;
+  const thumbLeft = activeTrackWidth - THUMB_SIZE / 2;
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>앱 차단</Text>
+        <View style={styles.filterButtons}>
+          <TouchableOpacity style={[styles.filterButton, styles.activeFilter]}>
+            <Text style={[styles.filterText, styles.activeFilterText]}>전체</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.filterButton}>
+            <Text style={styles.filterText}>차단중</Text>
+          </TouchableOpacity>
         </View>
-    );
+      </View>
+
+      <View style={styles.timerContainer}>
+        <View style={styles.appItem}>
+          <View style={styles.appInfo}>
+            <AntDesign
+              name="mobile1"
+              size={24}
+              color="#333"
+              style={styles.appIcon}
+            />
+            <Text style={styles.appName}>네이버 웹툰</Text>
+            <View style={styles.timeIndicator}>
+              <Text style={styles.timeText}>보낸 시간 : 01:21:13</Text>
+              <Text style={styles.percentage}>71%</Text>
+            </View>
+          </View>
+        </View>
+
+        <Text style={styles.sectionTitle}>사용 시간 설정</Text>
+
+        <View style={styles.timeDisplay}>
+          <Text style={styles.timeDisplayText}>{formatTime(selectedTime)}</Text>
+        </View>
+
+        <View style={styles.controlRow}>
+          <TouchableOpacity
+            style={styles.adjustButton}
+            onPress={() => handleStepChange(-5)}
+          >
+            <AntDesign name="minus" size={16} color={theme.colors.text} />
+          </TouchableOpacity>
+          <View style={styles.sliderContainer}>
+            <View
+              style={styles.sliderTrackWrapper}
+              onLayout={handleTrackLayout}
+              {...panResponder.panHandlers}
+            >
+              <View style={styles.sliderTrack} />
+              <View
+                style={[styles.sliderActiveTrack, { width: activeTrackWidth }]}
+              />
+              <View
+                style={[styles.sliderThumb, { left: thumbLeft }]}
+              />
+            </View>
+            <View style={styles.sliderLabels}>
+              <Text style={styles.sliderLabel}>0분</Text>
+              <Text style={styles.sliderLabel}>180분</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.adjustButton}
+            onPress={() => handleStepChange(5)}
+          >
+            <AntDesign name="plus" size={16} color={theme.colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity style={styles.cancelButton}>
+            <Text style={styles.cancelButtonText}>취소</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.addButton}>
+            <Text style={styles.addButtonText}>추가</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -176,17 +268,66 @@ const styles = StyleSheet.create({
         fontWeight: "700",
         color: theme.colors.text,
     },
-    sliderContainer: {
+    controlRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: theme.spacing.sm,
         marginBottom: theme.spacing.xl,
     },
-    slider: {
-        width: '100%',
-        height: 40,
+    adjustButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: theme.colors.gray[300],
+        backgroundColor: theme.colors.white,
+    },
+    sliderContainer: {
+        flex: 1,
+    },
+    sliderTrackWrapper: {
+        height: THUMB_SIZE,
+        justifyContent: 'center',
+    },
+    sliderTrack: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: theme.colors.gray[300],
+    },
+    sliderActiveTrack: {
+        position: 'absolute',
+        left: 0,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: theme.colors.primary,
     },
     sliderThumb: {
+        position: 'absolute',
+        width: THUMB_SIZE,
+        height: THUMB_SIZE,
+        borderRadius: THUMB_SIZE / 2,
         backgroundColor: theme.colors.primary,
-        width: 20,
-        height: 20,
+        borderWidth: 2,
+        borderColor: theme.colors.white,
+        elevation: 4,
+        shadowColor: theme.colors.black,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+    },
+    sliderLabels: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: theme.spacing.xs,
+    },
+    sliderLabel: {
+        fontSize: theme.typography.caption.fontSize,
+        color: theme.colors.gray[500],
     },
     buttonContainer: {
         flexDirection: 'row',
