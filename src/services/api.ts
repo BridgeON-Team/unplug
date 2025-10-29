@@ -1,5 +1,5 @@
-import { API_BASE_URL } from "@/constants/env";
 import { AuthUtils } from "@/utils/auth";
+import { API_BASE_URL } from "../../constants/env";
 
 // API 기본 설정 및 공통 함수들
 const BASE_URL = API_BASE_URL.replace(/\/$/, "");
@@ -138,14 +138,18 @@ interface ApiRequestError extends Error {
   response?: Response;
 }
 
-const apiCall = async <T>(
+export const apiCall = async <T>(
   endpoint: string,
   options: AuthenticatedRequestInit = {}
 ): Promise<ApiResponse<T>> => {
   const url = `${BASE_URL}${endpoint}`;
 
-  const { skipAuth = false, retry = true, headers: optionHeaders, ...rest } =
-    options;
+  const {
+    skipAuth = false,
+    retry = true,
+    headers: optionHeaders,
+    ...rest
+  } = options;
 
   const headers = new Headers({
     "Content-Type": "application/json",
@@ -252,12 +256,13 @@ export const surveyApi = {
   submitSurvey: async (
     surveyData: SurveyRequest
   ): Promise<ApiResponse<SurveyResult>> => {
-    const response = await apiCall<
-      SurveyResult | ApiResponse<SurveyResult>
-    >("/user/survey/submit", {
-      method: "POST",
-      body: JSON.stringify(surveyData),
-    });
+    const response = await apiCall<SurveyResult | ApiResponse<SurveyResult>>(
+      "/user/survey/submit",
+      {
+        method: "POST",
+        body: JSON.stringify(surveyData),
+      }
+    );
 
     if (
       typeof response === "object" &&
@@ -347,6 +352,259 @@ export const authApi = {
   },
 };
 
+// 홈 화면 관련 타입 정의
+export interface HomePost {
+  postId: number;
+  title: string;
+  content: string;
+  author: string;
+  authorId: number;
+  createdAt: string;
+  updatedAt: string;
+  likeCount: number;
+  commentCount: number;
+  category: string;
+  tags: string[];
+  isLiked: boolean;
+}
+
+export interface HomeUser {
+  userId: number;
+  username: string;
+  name: string;
+  nickname: string;
+  profileImgUrl: string;
+  isFollowing: boolean;
+  followerCount: number;
+  followingCount: number;
+}
+
+export interface HomeStats {
+  totalPosts: number;
+  totalUsers: number;
+  totalLikes: number;
+  totalComments: number;
+}
+
+export interface HomeData {
+  featuredPosts: HomePost[];
+  recentPosts: HomePost[];
+  popularUsers: HomeUser[];
+  stats: HomeStats;
+  categories: string[];
+}
+
+// Mock 데이터
+const mockHomeData: HomeData = {
+  featuredPosts: [
+    {
+      postId: 1,
+      title: "React Native 개발 팁",
+      content:
+        "React Native로 앱을 개발할 때 유용한 팁들을 공유합니다. 성능 최적화부터 디버깅까지 다양한 내용을 다룹니다.",
+      author: "김개발",
+      authorId: 1,
+      createdAt: "2024-01-15T10:30:00Z",
+      updatedAt: "2024-01-15T10:30:00Z",
+      likeCount: 42,
+      commentCount: 8,
+      category: "개발",
+      tags: ["React Native", "모바일", "개발"],
+      isLiked: false,
+    },
+    {
+      postId: 2,
+      title: "TypeScript 활용법",
+      content:
+        "TypeScript를 활용한 안전한 코드 작성 방법에 대해 알아보겠습니다. 타입 안전성과 개발 생산성을 높이는 방법들을 소개합니다.",
+      author: "박타입",
+      authorId: 2,
+      createdAt: "2024-01-14T15:20:00Z",
+      updatedAt: "2024-01-14T15:20:00Z",
+      likeCount: 38,
+      commentCount: 12,
+      category: "개발",
+      tags: ["TypeScript", "JavaScript", "타입"],
+      isLiked: true,
+    },
+  ],
+  recentPosts: [
+    {
+      postId: 3,
+      title: "최신 웹 기술 트렌드",
+      content:
+        "2024년 웹 개발 트렌드를 정리해봤습니다. 새로운 프레임워크와 도구들에 대해 알아보세요.",
+      author: "이웹",
+      authorId: 3,
+      createdAt: "2024-01-13T09:15:00Z",
+      updatedAt: "2024-01-13T09:15:00Z",
+      likeCount: 25,
+      commentCount: 5,
+      category: "웹",
+      tags: ["웹", "트렌드", "기술"],
+      isLiked: false,
+    },
+    {
+      postId: 4,
+      title: "데이터베이스 설계 가이드",
+      content:
+        "효율적인 데이터베이스 설계를 위한 기본 원칙과 모범 사례를 소개합니다.",
+      author: "최데이터",
+      authorId: 4,
+      createdAt: "2024-01-12T14:45:00Z",
+      updatedAt: "2024-01-12T14:45:00Z",
+      likeCount: 31,
+      commentCount: 7,
+      category: "데이터베이스",
+      tags: ["DB", "설계", "최적화"],
+      isLiked: false,
+    },
+  ],
+  popularUsers: [
+    {
+      userId: 1,
+      username: "kimdev",
+      name: "김개발",
+      nickname: "개발킴",
+      profileImgUrl: "https://via.placeholder.com/50",
+      isFollowing: false,
+      followerCount: 1250,
+      followingCount: 320,
+    },
+    {
+      userId: 2,
+      username: "parktype",
+      name: "박타입",
+      nickname: "타입박",
+      profileImgUrl: "https://via.placeholder.com/50",
+      isFollowing: true,
+      followerCount: 980,
+      followingCount: 180,
+    },
+    {
+      userId: 3,
+      username: "leeweb",
+      name: "이웹",
+      nickname: "웹이",
+      profileImgUrl: "https://via.placeholder.com/50",
+      isFollowing: false,
+      followerCount: 750,
+      followingCount: 250,
+    },
+  ],
+  stats: {
+    totalPosts: 1247,
+    totalUsers: 342,
+    totalLikes: 15680,
+    totalComments: 3240,
+  },
+  categories: ["개발", "웹", "모바일", "데이터베이스", "AI", "디자인"],
+};
+
+// Mock 모드 설정 (개발 중에는 true로 설정)
+const USE_MOCK_DATA = true;
+
+// 홈 화면 관련 API 함수들
+export const homeApi = {
+  // 홈 화면 메인 데이터 가져오기
+  getHomeData: async (): Promise<ApiResponse<HomeData>> => {
+    if (USE_MOCK_DATA) {
+      // Mock 데이터 사용
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            success: true,
+            message: "Success",
+            data: mockHomeData,
+          });
+        }, 1000); // 1초 지연으로 로딩 테스트
+      });
+    }
+
+    return apiCall<HomeData>("/api/home", {
+      method: "GET",
+    });
+  },
+
+  // 최신 포스트 가져오기
+  getRecentPosts: async (limit: number = 10): Promise<ApiResponse<any[]>> => {
+    return apiCall(`/api/posts/recent?limit=${limit}`, {
+      method: "GET",
+    });
+  },
+
+  // 인기 포스트 가져오기
+  getPopularPosts: async (limit: number = 10): Promise<ApiResponse<any[]>> => {
+    return apiCall(`/api/posts/popular?limit=${limit}`, {
+      method: "GET",
+    });
+  },
+
+  // 추천 사용자 가져오기
+  getRecommendedUsers: async (
+    limit: number = 5
+  ): Promise<ApiResponse<any[]>> => {
+    return apiCall(`/api/users/recommended?limit=${limit}`, {
+      method: "GET",
+    });
+  },
+
+  // 포스트 검색
+  searchPosts: async (
+    query: string,
+    limit: number = 10
+  ): Promise<ApiResponse<any[]>> => {
+    return apiCall(
+      `/api/posts/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+      {
+        method: "GET",
+      }
+    );
+  },
+
+  // 카테고리별 포스트 가져오기
+  getPostsByCategory: async (
+    category: string,
+    limit: number = 10
+  ): Promise<ApiResponse<any[]>> => {
+    return apiCall(`/api/posts/category/${category}?limit=${limit}`, {
+      method: "GET",
+    });
+  },
+
+  // 포스트 좋아요 토글
+  togglePostLike: async (
+    postId: number
+  ): Promise<ApiResponse<{ isLiked: boolean; likeCount: number }>> => {
+    return apiCall(`/api/posts/${postId}/like`, {
+      method: "POST",
+    });
+  },
+
+  // 사용자 팔로우 토글
+  toggleUserFollow: async (
+    userId: number
+  ): Promise<ApiResponse<{ isFollowing: boolean; followerCount: number }>> => {
+    return apiCall(`/api/users/${userId}/follow`, {
+      method: "POST",
+    });
+  },
+
+  // 홈 통계 가져오기
+  getHomeStats: async (): Promise<
+    ApiResponse<{
+      totalPosts: number;
+      totalUsers: number;
+      totalLikes: number;
+      totalComments: number;
+    }>
+  > => {
+    return apiCall("/api/home/stats", {
+      method: "GET",
+    });
+  },
+};
+
 // 챗봇 관련 API 함수들
 export const chatbotApi = {
   // 채팅 스레드 생성
@@ -354,14 +612,10 @@ export const chatbotApi = {
     username: string,
     threadData: ChatThreadDto
   ): Promise<ChatThreadResponseDto> => {
-    const response = await apiCallWithAuth<ChatThreadResponseDto>(
-      "/chatbot/threads",
-      username,
-      {
-        method: "POST",
-        body: JSON.stringify(threadData),
-      }
-    );
+    const response = await apiCall<ChatThreadResponseDto>("/chatbot/threads", {
+      method: "POST",
+      body: JSON.stringify(threadData),
+    });
     return response.data;
   },
 
@@ -370,14 +624,10 @@ export const chatbotApi = {
     username: string,
     messageData: ChatMessageDto
   ): Promise<ChatMessageDto> => {
-    const response = await apiCallWithAuth<ChatMessageDto>(
-      "/chatbot/messages",
-      username,
-      {
-        method: "POST",
-        body: JSON.stringify(messageData),
-      }
-    );
+    const response = await apiCall<ChatMessageDto>("/chatbot/messages", {
+      method: "POST",
+      body: JSON.stringify(messageData),
+    });
     return response.data;
   },
 
@@ -386,9 +636,8 @@ export const chatbotApi = {
     username: string,
     threadId: number
   ): Promise<ChatThreadResponseDto> => {
-    const response = await apiCallWithAuth<ChatThreadResponseDto>(
+    const response = await apiCall<ChatThreadResponseDto>(
       `/chatbot/threads/${threadId}`,
-      username,
       {
         method: "GET",
       }
@@ -398,16 +647,15 @@ export const chatbotApi = {
 
   // 스레드 삭제
   deleteThread: async (username: string, threadId: number): Promise<void> => {
-    await apiCallWithAuth<void>(`/chatbot/threads/${threadId}`, username, {
+    await apiCall<void>(`/chatbot/threads/${threadId}`, {
       method: "DELETE",
     });
   },
 
   // 내 스레드 목록 조회
   getMyThreads: async (username: string): Promise<ChatThreadResponseDto[]> => {
-    const response = await apiCallWithAuth<ChatThreadResponseDto[]>(
+    const response = await apiCall<ChatThreadResponseDto[]>(
       "/chatbot/threads/me",
-      username,
       {
         method: "GET",
       }
@@ -420,9 +668,8 @@ export const chatbotApi = {
     username: string,
     threadId: number
   ): Promise<ChatMessageDto[]> => {
-    const response = await apiCallWithAuth<ChatMessageDto[]>(
+    const response = await apiCall<ChatMessageDto[]>(
       `/chatbot/messages/thread/${threadId}`,
-      username,
       {
         method: "GET",
       }
@@ -432,7 +679,7 @@ export const chatbotApi = {
 
   // 메시지 삭제
   deleteMessage: async (username: string, messageId: number): Promise<void> => {
-    await apiCallWithAuth<void>(`/chatbot/messages/${messageId}`, username, {
+    await apiCall<void>(`/chatbot/messages/${messageId}`, {
       method: "DELETE",
     });
   },
