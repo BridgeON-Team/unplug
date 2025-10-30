@@ -10,11 +10,6 @@ import {
   View,
 } from "react-native";
 
-// SVG 아이콘 import
-const PersonIcon = require("@/assets/images/common/person_icon.svg").default;
-const HeartIcon = require("@/assets/images/common/heart_icon.svg").default;
-const ChatIcon = require("@/assets/images/common/chat_icon.svg").default;
-
 interface GroupCardData {
   id: string;
   title: string;
@@ -26,6 +21,7 @@ interface GroupCardData {
   actionLabel?: string;
   actionDisabled?: boolean;
   actionLoading?: boolean;
+  isParticipating?: boolean;
 }
 
 interface GroupCardProps {
@@ -37,6 +33,10 @@ interface GroupCardProps {
   likeDisabled?: boolean;
   commentDisabled?: boolean;
 }
+
+const PersonIcon = require("@/assets/images/common/person_icon.svg").default;
+const HeartIcon = require("@/assets/images/common/heart_icon.svg").default;
+const ChatIcon = require("@/assets/images/common/chat_icon.svg").default;
 
 export default function GroupCard({
   group,
@@ -57,6 +57,58 @@ export default function GroupCard({
   const showActionButton = Boolean(group.actionLabel);
   const isActionDisabled =
     group.actionDisabled || group.actionLoading || !onActionPress;
+
+  const stats = [
+    {
+      key: "participants",
+      renderIcon: () => (
+        <PersonIcon
+          width={16}
+          height={16}
+          fill={theme.colors.gray[500]}
+        />
+      ),
+      value: group.participants ?? 0,
+    },
+    {
+      key: "likes",
+      renderIcon: () => (
+        <HeartIcon
+          width={16}
+          height={16}
+          fill={theme.colors.gray[500]}
+        />
+      ),
+      value: group.likes ?? 0,
+      onPress: onLikePress,
+      disabled: likeDisabled,
+    },
+    typeof group.comments === "number"
+      ? {
+          key: "comments",
+          renderIcon: () => (
+            <ChatIcon
+              width={16}
+              height={16}
+              fill={theme.colors.gray[500]}
+            />
+          ),
+          value: group.comments,
+          onPress: onCommentPress,
+          disabled: commentDisabled,
+        }
+      : null,
+  ].filter(
+    (
+      stat
+    ): stat is {
+      key: string;
+      renderIcon: () => React.ReactNode;
+      value: number;
+      onPress?: () => void;
+      disabled?: boolean;
+    } => stat !== null
+  );
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={onPress ? 0.8 : 1}>
@@ -114,42 +166,22 @@ export default function GroupCard({
 
           {/* 오른쪽 통계 영역 */}
           <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <PersonIcon
-                width={16}
-                height={16}
-                fill={theme.colors.gray[500]}
-              />
-              <Text style={styles.statText}>{group.participants ?? 0}</Text>
-            </View>
+            {stats.map(({ key, renderIcon, value, onPress: statPress, disabled }) => {
+              const Wrapper = statPress ? TouchableOpacity : View;
 
-            <TouchableOpacity
-              style={styles.statItem}
-              onPress={onLikePress}
-              disabled={likeDisabled || !onLikePress}
-              activeOpacity={onLikePress && !likeDisabled ? 0.8 : 1}
-            >
-              <HeartIcon width={16} height={16} fill={theme.colors.gray[500]} />
-              <Text style={styles.statText}>{group.likes ?? 0}</Text>
-            </TouchableOpacity>
-
-            {typeof group.comments === "number" ? (
-              <TouchableOpacity
-                style={styles.statItem}
-                onPress={onCommentPress}
-                disabled={commentDisabled || !onCommentPress}
-                activeOpacity={
-                  onCommentPress && !commentDisabled ? 0.8 : 1
-                }
-              >
-                <ChatIcon
-                  width={16}
-                  height={16}
-                  fill={theme.colors.gray[500]}
-                />
-                <Text style={styles.statText}>{group.comments}</Text>
-              </TouchableOpacity>
-            ) : null}
+              return (
+                <Wrapper
+                  key={`${group.id}-stat-${key}`}
+                  style={styles.statItem}
+                  onPress={statPress}
+                  disabled={Boolean(disabled) || !statPress}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.statIconContainer}>{renderIcon()}</View>
+                  <Text style={styles.statText}>{value}</Text>
+                </Wrapper>
+              );
+            })}
           </View>
         </View>
       </View>
@@ -160,8 +192,7 @@ export default function GroupCard({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: theme.colors.white,
-    marginHorizontal: theme.spacing.md,
-    marginVertical: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
     borderRadius: theme.borderRadius.md,
     shadowColor: theme.colors.black,
     shadowOffset: {
@@ -220,16 +251,23 @@ const styles = StyleSheet.create({
     color: theme.colors.gray[500],
   },
   statsContainer: {
-    alignItems: "center",
+    alignItems: "flex-end",
   },
   statItem: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: theme.spacing.xs,
+    gap: theme.spacing.xs,
+  },
+  statIconContainer: {
+    width: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
   statText: {
-    fontSize: 12,
+    fontSize: theme.typography.caption.fontSize,
     color: theme.colors.gray[500],
-    marginLeft: 4,
+    fontWeight: "600",
   },
 });

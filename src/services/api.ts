@@ -87,6 +87,32 @@ export interface ChallengeDTO {
   participantCount?: number;
 }
 
+export interface GroupCreateRequestDTO {
+  groupName: string;
+  groupIntroduction?: string | null;
+}
+
+export interface ChallengeCreateRequestDTO {
+  content: string;
+}
+
+export interface GroupChallengeRequestDTO {
+  groupId: number;
+  challengeId: number;
+}
+
+const requireUsernameHeader = async (): Promise<HeadersInit> => {
+  const username = await AuthUtils.getUsername();
+
+  if (!username) {
+    throw new Error("사용자 정보가 없습니다. 다시 로그인해주세요.");
+  }
+
+  return {
+    "X-Auth-Username": username,
+  };
+};
+
 // API 호출을 위한 공통 함수
 interface AuthenticatedRequestInit extends RequestInit {
   skipAuth?: boolean;
@@ -393,16 +419,30 @@ export const apiCall = async <T>(
     }
 
     const rawBody = await response.text();
+    const contentType =
+      response.headers.get("content-type")?.toLowerCase() ?? "";
 
-    if (!rawBody) {
+    if (!rawBody || rawBody.trim().length === 0) {
       return {} as ApiResponse<T>;
     }
 
+    const shouldParseJson =
+      contentType.includes("application/json") ||
+      contentType.includes("application/problem+json");
+
     try {
+      if (shouldParseJson) {
+        return JSON.parse(rawBody);
+      }
+
       return JSON.parse(rawBody);
     } catch (parseError) {
-      console.error("API response parse error:", parseError);
-      return {} as ApiResponse<T>;
+      console.warn("API response parse error, returning raw text:", parseError);
+      return {
+        success: true,
+        message: "",
+        data: rawBody as unknown as T,
+      };
     }
   } catch (error) {
     const status = (error as ApiRequestError)?.status;
@@ -599,10 +639,12 @@ export const authApi = {
 // 모임(그룹) 관련 API 함수들
 export const groupApi = {
   getAvailableGroups: async (lastId?: number): Promise<GroupDTO[]> => {
+    const headers = await requireUsernameHeader();
     const response = await apiCall<GroupDTO[] | ApiResponse<GroupDTO[]>>(
       `/group/groups${buildPaginationQuery(lastId)}`,
       {
         method: "GET",
+        headers,
       }
     );
 
@@ -610,19 +652,43 @@ export const groupApi = {
   },
 
   getParticipatingGroups: async (lastId?: number): Promise<GroupDTO[]> => {
+    const headers = await requireUsernameHeader();
     const response = await apiCall<GroupDTO[] | ApiResponse<GroupDTO[]>>(
       `/group/participating${buildPaginationQuery(lastId)}`,
       {
         method: "GET",
+        headers,
       }
     );
 
     return unwrapArrayResponse(response);
   },
 
+  createGroup: async (
+    payload: GroupCreateRequestDTO
+  ): Promise<GroupDTO | string | void> => {
+    const headers = await requireUsernameHeader();
+    const response = await apiCall<GroupDTO | string | ApiResponse<GroupDTO | string>>(
+      "/group/create",
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      }
+    );
+
+    if (isApiResponse<GroupDTO | string>(response)) {
+      return response.data;
+    }
+
+    return response;
+  },
+
   likeGroup: async (groupId: number): Promise<void> => {
+    const headers = await requireUsernameHeader();
     const response = await apiCall<void>(`/group/like`, {
       method: "POST",
+      headers,
       body: JSON.stringify({ groupId }),
     });
 
@@ -632,14 +698,33 @@ export const groupApi = {
   },
 
   joinGroup: async (groupId: number): Promise<void> => {
+    const headers = await requireUsernameHeader();
     const response = await apiCall<void>(`/group/join`, {
       method: "POST",
+      headers,
       body: JSON.stringify({ groupId }),
     });
 
     if (isApiResponse(response) && !response.success) {
       throw new Error(response.message || "모임 참여에 실패했습니다.");
     }
+  },
+
+  insertSample: async (): Promise<string | void> => {
+    const headers = await requireUsernameHeader();
+    const response = await apiCall<string | ApiResponse<string>>(
+      "/group/insert-sample",
+      {
+        method: "GET",
+        headers,
+      }
+    );
+
+    if (isApiResponse<string>(response)) {
+      return response.data;
+    }
+
+    return response;
   },
 };
 
@@ -648,10 +733,12 @@ export const challengeApi = {
   getAvailableChallenges: async (
     lastId?: number
   ): Promise<ChallengeDTO[]> => {
+    const headers = await requireUsernameHeader();
     const response = await apiCall<
       ChallengeDTO[] | ApiResponse<ChallengeDTO[]>
     >(`/challenge/challenges${buildPaginationQuery(lastId)}`, {
       method: "GET",
+      headers,
     });
 
     return unwrapArrayResponse(response);
@@ -660,18 +747,22 @@ export const challengeApi = {
   getParticipatingChallenges: async (
     lastId?: number
   ): Promise<ChallengeDTO[]> => {
+    const headers = await requireUsernameHeader();
     const response = await apiCall<
       ChallengeDTO[] | ApiResponse<ChallengeDTO[]>
     >(`/challenge/participating${buildPaginationQuery(lastId)}`, {
       method: "GET",
+      headers,
     });
 
     return unwrapArrayResponse(response);
   },
 
   likeChallenge: async (challengeId: number): Promise<void> => {
+    const headers = await requireUsernameHeader();
     const response = await apiCall<void>(`/challenge/like`, {
       method: "POST",
+      headers,
       body: JSON.stringify({ challengeId }),
     });
 
@@ -681,14 +772,132 @@ export const challengeApi = {
   },
 
   startChallenge: async (challengeId: number): Promise<void> => {
+    const headers = await requireUsernameHeader();
     const response = await apiCall<void>(`/challenge/start`, {
       method: "POST",
+      headers,
       body: JSON.stringify({ challengeId }),
     });
 
     if (isApiResponse(response) && !response.success) {
       throw new Error(response.message || "챌린지 시작에 실패했습니다.");
     }
+  },
+
+  createChallenge: async (
+    payload: ChallengeCreateRequestDTO
+  ): Promise<string | void> => {
+    const headers = await requireUsernameHeader();
+    const response = await apiCall<string | ApiResponse<string>>(
+      "/challenge/create",
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      }
+    );
+
+    if (isApiResponse<string>(response)) {
+      return response.data;
+    }
+
+    return response;
+  },
+
+  startGroupChallenge: async (payload: GroupChallengeRequestDTO) => {
+    const headers = await requireUsernameHeader();
+    const response = await apiCall<void>("/challenge/startG", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+
+    if (isApiResponse(response) && !response.success) {
+      throw new Error(response.message || "모임 챌린지 시작에 실패했습니다.");
+    }
+  },
+
+  completeChallenge: async (challengeId: number) => {
+    const headers = await requireUsernameHeader();
+    const response = await apiCall<void>(
+      `/challenge/challenges/${challengeId}/complete`,
+      {
+        method: "PATCH",
+        headers,
+      }
+    );
+
+    if (isApiResponse(response) && !response.success) {
+      throw new Error(response.message || "챌린지 완료에 실패했습니다.");
+    }
+  },
+
+  completeGroupChallenge: async (payload: GroupChallengeRequestDTO) => {
+    const headers = await requireUsernameHeader();
+    const response = await apiCall<void>(
+      `/challenge/groups/${payload.groupId}/challenges/${payload.challengeId}/complete`,
+      {
+        method: "PATCH",
+        headers,
+      }
+    );
+
+    if (isApiResponse(response) && !response.success) {
+      throw new Error(response.message || "모임 챌린지 완료에 실패했습니다.");
+    }
+  },
+
+  getGroupChallenges: async (
+    groupId: number,
+    lastId?: number
+  ): Promise<ChallengeDTO[]> => {
+    const headers = await requireUsernameHeader();
+    const response = await apiCall<
+      ChallengeDTO[] | ApiResponse<ChallengeDTO[]>
+    >(
+      `/challenge/groupChallenges?groupId=${groupId}${lastId ? `&lastId=${lastId}` : ""}`,
+      {
+        method: "GET",
+        headers,
+      }
+    );
+
+    return unwrapArrayResponse(response);
+  },
+
+  getGroupParticipatingChallenges: async (
+    groupId: number,
+    lastId?: number
+  ): Promise<ChallengeDTO[]> => {
+    const headers = await requireUsernameHeader();
+    const response = await apiCall<
+      ChallengeDTO[] | ApiResponse<ChallengeDTO[]>
+    >(
+      `/challenge/groupParticipating?groupId=${groupId}${lastId ? `&lastId=${lastId}` : ""}`,
+      {
+        method: "GET",
+        headers,
+      }
+    );
+
+    return unwrapArrayResponse(response);
+  },
+
+  insertSample: async (): Promise<string | void> => {
+    const headers = await requireUsernameHeader();
+    const response = await apiCall<string | ApiResponse<string>>(
+      "/challenge/insert-sample",
+      {
+        method: "GET",
+        headers,
+      }
+    );
+
+    if (isApiResponse<string>(response)) {
+      return response.data;
+    }
+
+    return response;
   },
 };
 

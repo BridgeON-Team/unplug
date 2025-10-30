@@ -6,7 +6,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Alert,
-  Animated as RNAnimated,
   Dimensions,
   Easing,
   Keyboard,
@@ -14,6 +13,7 @@ import {
   Modal,
   Platform,
   RefreshControl,
+  Animated as RNAnimated,
   ScrollView,
   StyleSheet,
   Text,
@@ -317,112 +317,112 @@ export default function ChatbotScreenLayout() {
             <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={toggleDrawer} />
           )}
 
-        <View style={styles.contentContainer}>
-          <View style={styles.chatHeader}>
-            <TouchableOpacity
-              onPress={toggleDrawer}
-              style={styles.headerButton}
-              activeOpacity={0.8}
-            >
-              <IconSymbol
-                name="sidebar.left"
-                color={isDrawerOpen ? theme.colors.primary : theme.colors.text}
-                size={24}
-              />
-            </TouchableOpacity>
-
-            <Text style={styles.chatHeaderTitle} numberOfLines={1}>
-              {currentThread ? currentThread.title : "챗봇"}
-            </Text>
-
-            <TouchableOpacity
-              onPress={handleQuickCreatePress}
-              style={styles.headerButtonRight}
-              activeOpacity={0.8}
-            >
-              <IconSymbol name="plus.circle" color={theme.colors.primary} size={24} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.chatBody}>
-            {isLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator color={theme.colors.primary} size="large" />
-              </View>
-            ) : currentThread ? (
-              <ScrollView
-                style={styles.messagesList}
-                contentContainerStyle={styles.messagesContent}
-                keyboardShouldPersistTaps="handled"
-                refreshControl={<RefreshControl {...messagesRefreshProps} />}
+          <View style={styles.contentContainer}>
+            <View style={styles.chatHeader}>
+              <TouchableOpacity
+                onPress={toggleDrawer}
+                style={styles.headerButton}
+                activeOpacity={0.8}
               >
-                {messages.map((msg, index) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.messageItem,
-                      msg.sender === "USER" ? styles.userMessage : styles.botMessage,
-                    ]}
-                  >
-                    <Text
+                <IconSymbol
+                  name="sidebar.left"
+                  color={isDrawerOpen ? theme.colors.primary : theme.colors.text}
+                  size={24}
+                />
+              </TouchableOpacity>
+
+              <Text style={styles.chatHeaderTitle} numberOfLines={1}>
+                {currentThread ? currentThread.title : "챗봇"}
+              </Text>
+
+              <TouchableOpacity
+                onPress={handleQuickCreatePress}
+                style={styles.headerButtonRight}
+                activeOpacity={0.8}
+              >
+                <IconSymbol name="plus.circle" color={theme.colors.primary} size={24} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.chatBody}>
+              {isLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator color={theme.colors.primary} size="large" />
+                </View>
+              ) : currentThread ? (
+                <ScrollView
+                  style={styles.messagesList}
+                  contentContainerStyle={styles.messagesContent}
+                  keyboardShouldPersistTaps="handled"
+                  refreshControl={<RefreshControl {...messagesRefreshProps} />}
+                >
+                  {messages.map((msg, index) => (
+                    <View
+                      key={index}
                       style={[
-                        styles.messageText,
-                        msg.sender === "USER" && styles.userMessageText,
+                        styles.messageItem,
+                        msg.sender === "USER" ? styles.userMessage : styles.botMessage,
                       ]}
                     >
-                      {msg.message}
-                    </Text>
-                  </View>
-                ))}
-              </ScrollView>
-            ) : (
-              <View style={styles.noThreadContainer}>
-                <Text style={styles.noThreadText}>
-                  첫 메시지를 입력하면 새로운 스레드가 생성됩니다.
-                </Text>
-              </View>
-            )}
+                      <Text
+                        style={[
+                          styles.messageText,
+                          msg.sender === "USER" && styles.userMessageText,
+                        ]}
+                      >
+                        {msg.message}
+                      </Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : (
+                <View style={styles.noThreadContainer}>
+                  <Text style={styles.noThreadText}>
+                    첫 메시지를 입력하면 새로운 스레드가 생성됩니다.
+                  </Text>
+                </View>
+              )}
 
-            <View
-              style={[
-                styles.messageInputContainer,
-                { paddingBottom: Math.max(theme.spacing.xs, insets.bottom) },
-              ]}
-            >
-              {isKeyboardVisible ? (
-                <TouchableOpacity
-                  style={styles.dismissKeyboardButton}
-                  activeOpacity={0.8}
-                  onPress={() => Keyboard.dismiss()}
-                >
-                  <IconSymbol
-                    name="keyboard.chevron.compact.down"
-                    color={theme.colors.gray[500]}
-                    size={20}
-                  />
-                </TouchableOpacity>
-              ) : null}
-
-              <TextInput
-                style={styles.messageInput}
-                placeholder="메시지를 입력하세요..."
-                placeholderTextColor={theme.colors.gray[500]}
-                value={message}
-                onChangeText={setMessage}
-                textAlign="left"
-                multiline
-              />
-              <TouchableOpacity
-                style={styles.sendButton}
-                onPress={handleSendMessage}
-                activeOpacity={0.85}
+              <View
+                style={[
+                  styles.messageInputContainer,
+                  { paddingBottom: Math.max(theme.spacing.xs, insets.bottom) },
+                ]}
               >
-                <Text style={styles.sendButtonText}>전송</Text>
-              </TouchableOpacity>
+                {isKeyboardVisible ? (
+                  <TouchableOpacity
+                    style={styles.dismissKeyboardButton}
+                    activeOpacity={0.8}
+                    onPress={() => Keyboard.dismiss()}
+                  >
+                    <IconSymbol
+                      name="keyboard.chevron.compact.down"
+                      color={theme.colors.gray[500]}
+                      size={20}
+                    />
+                  </TouchableOpacity>
+                ) : null}
+
+                <TextInput
+                  style={styles.messageInput}
+                  placeholder="메시지를 입력하세요..."
+                  placeholderTextColor={theme.colors.gray[500]}
+                  value={message}
+                  onChangeText={setMessage}
+                  textAlign="left"
+                  multiline
+                />
+                <TouchableOpacity
+                  style={styles.sendButton}
+                  onPress={handleSendMessage}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.sendButtonText}>전송</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
-      </View>
       </KeyboardAvoidingView>
 
       <Modal

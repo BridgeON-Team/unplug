@@ -9,9 +9,9 @@ import ChallengeSection, {
   ChallengeSectionHandle,
 } from "@/components/home/ChallengeSection";
 import FocusChartSection from "@/components/home/FocusChartSection";
-import PageHeading from "@/components/shared/PageHeading";
 import BottomNavigationBar from "@/components/shared/navigationBar/NavigationBar";
 import TopBar from "@/components/shared/navigationBar/TopBar";
+import PageHeading from "@/components/shared/PageHeading";
 import RefreshableScrollView from "@/components/shared/RefreshableScrollView";
 import { theme } from "@/src/styles/theme";
 
@@ -71,6 +71,7 @@ export default function HomeScreen() {
           onRefreshRequest={handleRefresh}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollContentInset }]}
         >
+
           <FocusChartSection
             hasSetTime={true}
             percentage={38}

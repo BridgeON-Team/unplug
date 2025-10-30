@@ -9,12 +9,11 @@ import BottomNavigationBar from "@/components/shared/navigationBar/NavigationBar
 import TopBar from "@/components/shared/navigationBar/TopBar";
 import { theme } from "@/src/styles/theme";
 
-const NAVIGATION_PADDING = 72;
-
 export default function TabTwoScreen() {
     const params = useLocalSearchParams();
     const [activeTab, setActiveTab] = useState("groups");
     const insets = useSafeAreaInsets();
+    const bottomInset = Math.max(insets.bottom, theme.spacing.md);
 
     const { initialCategory, initialGroupFilter, initialChallengeFilter } = useMemo(() => {
         const categoryParam = Array.isArray(params.category) ? params.category[0] : params.category;
@@ -63,16 +62,12 @@ export default function TabTwoScreen() {
 
                 <PageHeading title="모임 & 챌린지" subtitle="관심있는 활동을 찾아보세요" />
 
-                <View
-                    style={[
-                        styles.contentContainer,
-                        { paddingBottom: insets.bottom + NAVIGATION_PADDING },
-                    ]}
-                >
+                <View style={styles.contentContainer}>
                     <GroupList
                         initialCategory={initialCategory}
                         initialGroupFilter={initialGroupFilter}
                         initialChallengeFilter={initialChallengeFilter}
+                        bottomInset={bottomInset}
                     />
                 </View>
 
