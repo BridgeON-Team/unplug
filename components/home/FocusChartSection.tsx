@@ -8,16 +8,35 @@ interface FocusChartSectionProps {
     hasSetTime?: boolean;
     percentage?: number;
     timeSpent?: string;
+    wip?: boolean
 }
 
 export default function FocusChartSection({
     hasSetTime = true,
     percentage = 38,
-    timeSpent = "02:20:48"
+    timeSpent = "02:20:48",
+    wip = true
 }: FocusChartSectionProps) {
     const circumference = 2 * Math.PI * 90;
     const strokeDashoffset = circumference - (percentage / 100) * circumference;
+    if (wip) {
+        return (
+            <View style={styles.container}>
+                <View style={styles.header}>
+                    <View style={styles.titleContainer}>
+                        <Text style={styles.title}>목표 집중 시간</Text>
+                        <IconSymbol name="chevron.right" size={16} color={theme.colors.gray[500]} />
+                    </View>
+                </View>
+                <View style={styles.emptyStateContainer}>
+                    <Text style={styles.emptyStateText}>
+                        준비중입니다.
+                    </Text>
+                </View>
+            </View >
 
+        )
+    }
     if (!hasSetTime) {
         return (
             <View style={styles.container}>

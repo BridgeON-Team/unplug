@@ -7,7 +7,7 @@ import TopBar from "@/components/shared/navigationBar/TopBar";
 import { theme } from "@/src/styles/theme";
 
 export default function WriteScreen() {
-  const [activeTab, setActiveTab] = useState("meetings");
+  const [activeTab, setActiveTab] = useState("groups");
   const [title, setTitle] = useState("");
   const [challenge, setChallenge] = useState("");
   const [content, setContent] = useState("");

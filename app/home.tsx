@@ -1,15 +1,27 @@
-import React, { useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import { StyleSheet, View } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import AvailableMeetingsSection from "@/components/home/AvailableMeetingsSection";
-import ChallengeSection from "@/components/home/ChallengeSection";
+import AvailableGroupsSection, {
+  AvailableGroupsSectionHandle,
+} from "@/components/home/AvailableGroupsSection";
+import ChallengeSection, {
+  ChallengeSectionHandle,
+} from "@/components/home/ChallengeSection";
 import FocusChartSection from "@/components/home/FocusChartSection";
 import BottomNavigationBar from "@/components/shared/navigationBar/NavigationBar";
 import TopBar from "@/components/shared/navigationBar/TopBar";
+import PageHeading from "@/components/shared/PageHeading";
+import RefreshableScrollView from "@/components/shared/RefreshableScrollView";
 import { theme } from "@/src/styles/theme";
 
+const NAVIGATION_PADDING = 72;
+
 export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState("home");
+  const challengeSectionRef = useRef<ChallengeSectionHandle>(null);
+  const groupsSectionRef = useRef<AvailableGroupsSectionHandle>(null);
 
   const handleTabPress = (tabId: string) => {
     setActiveTab(tabId);
@@ -20,70 +32,84 @@ export default function HomeScreen() {
     console.log("Notification pressed");
   };
 
+  const scrollContentInset = useMemo(
+    () => insets.bottom + NAVIGATION_PADDING,
+    [insets.bottom]
+  );
+
+  const handleRefresh = useCallback(async () => {
+    const tasks: Promise<void>[] = [];
+
+    if (challengeSectionRef.current) {
+      tasks.push(challengeSectionRef.current.refresh());
+    }
+
+    if (groupsSectionRef.current) {
+      tasks.push(groupsSectionRef.current.refresh());
+    }
+
+    if (tasks.length === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return;
+    }
+
+    await Promise.all(tasks);
+  }, []);
+
   return (
-    <View style={styles.container}>
-      {/* 고정된 상단 바 */}
-      <View style={styles.topBarContainer}>
-        <TopBar onNotificationPress={handleNotificationPress} />
-      </View>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.container}>
+        <View style={styles.topBarContainer}>
+          <TopBar onNotificationPress={handleNotificationPress} />
+        </View>
 
-      {/* 스크롤 가능한 콘텐츠 */}
-      <ScrollView
-        style={styles.scrollContainer}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* 집중 시간 영역 */}
-        <FocusChartSection
-          hasSetTime={true}
-          percentage={38}
-          timeSpent="02:20:48"
-        />
+        <PageHeading title="홈" subtitle="대시보드" />
 
-        {/* 챌린지 영역 */}
-        <ChallengeSection />
+        <RefreshableScrollView
+          style={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+          onRefreshRequest={handleRefresh}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollContentInset }]}
+        >
 
-        {/* 참여 가능한 모임 영역 */}
-        <AvailableMeetingsSection />
+          <FocusChartSection
+            hasSetTime={true}
+            percentage={38}
+            timeSpent="02:20:48"
+          />
 
-      </ScrollView>
+          <ChallengeSection ref={challengeSectionRef} />
 
-      {/* 고정된 하단 네비게이션 바 */}
-      <View style={styles.bottomBarContainer}>
+          <AvailableGroupsSection ref={groupsSectionRef} />
+        </RefreshableScrollView>
+
         <BottomNavigationBar
           activeTab={activeTab}
           onTabPress={handleTabPress}
         />
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
   },
   topBarContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1000,
+    paddingHorizontal: 0,
+    marginBottom: theme.spacing.sm,
   },
   scrollContainer: {
     flex: 1,
-    marginTop: 80,
-    marginBottom: 80,
+    paddingHorizontal: theme.spacing.md,
   },
   scrollContent: {
-    paddingBottom: theme.spacing.lg,
-  },
-  bottomBarContainer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1000,
+    paddingTop: theme.spacing.sm,
   },
 });

@@ -12,10 +12,13 @@ export const theme = {
     },
     background: "#FFFFFF",
     text: "#212121",
+    textSecondary: "#9E9E9E",
     white: "#FFFFFF",
     black: "#212121",
     secondary: "#34C759",
     success: "#4CD964",
+    surface: "#F8F9FA",
+    border: "#E6E6E6",
     dark: {
       background: "#212121",
       text: "#F5F5F5",
@@ -43,6 +46,11 @@ export const theme = {
       fontWeight: "bold",
       lineHeight: 32,
     },
+    h4: {
+      fontSize: 20,
+      fontWeight: "600",
+      lineHeight: 28,
+    },
     body: {
       fontSize: 16,
       fontWeight: "400",
@@ -52,6 +60,11 @@ export const theme = {
       fontSize: 12,
       fontWeight: "300",
       lineHeight: 18,
+    },
+    button: {
+      fontSize: 14,
+      fontWeight: "600",
+      lineHeight: 20,
     },
   },
   spacing: {

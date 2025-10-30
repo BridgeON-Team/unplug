@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { myPageApi, SurveyResult, UserInfo } from "../services/api";
 
 interface MyPageState {
@@ -30,7 +30,7 @@ export const useMyPage = (username: string | null) => {
   });
 
   // 사용자 정보 조회
-  const fetchUserInfo = async () => {
+  const fetchUserInfo = useCallback(async () => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
@@ -68,17 +68,43 @@ export const useMyPage = (username: string | null) => {
         isLoading: false,
       }));
     }
+  }, []);
+
+  const isSurveyResult = (value: unknown): value is SurveyResult => {
+    if (!value || typeof value !== "object") {
+      return false;
+    }
+
+    const result = value as Partial<SurveyResult>;
+    return (
+      typeof result.totalScore === "number" &&
+      typeof result.type === "string" &&
+      typeof result.description === "string"
+    );
   };
 
   // 설문 결과 조회
-  const fetchSurveyResult = async () => {
+  const fetchSurveyResult = useCallback(async () => {
     try {
       const response = await myPageApi.getSurveyResult();
 
-      if (response.success) {
+      const responseData =
+        ("data" in response && isSurveyResult(response.data)
+          ? response.data
+          : null) ?? (isSurveyResult(response) ? response : null);
+
+      if (responseData) {
         setState((prev) => ({
           ...prev,
-          surveyResult: response.data,
+          surveyResult: responseData,
+        }));
+        return;
+      }
+
+      if ("success" in response && response.success === false) {
+        setState((prev) => ({
+          ...prev,
+          surveyResult: null,
         }));
       }
     } catch (error) {
@@ -94,7 +120,7 @@ export const useMyPage = (username: string | null) => {
       console.error("설문 결과 조회 오류:", error);
       // 설문 결과는 필수가 아니므로 에러를 상태에 저장하지 않음
     }
-  };
+  }, []);
 
   // 회원 탈퇴
   const deleteUser = async () => {
@@ -118,7 +144,7 @@ export const useMyPage = (username: string | null) => {
       fetchUserInfo();
       fetchSurveyResult();
     }
-  }, [username]);
+  }, [username, fetchUserInfo, fetchSurveyResult]);
 
   return {
     ...state,

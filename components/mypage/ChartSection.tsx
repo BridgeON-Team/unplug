@@ -70,8 +70,8 @@ export default function ChartSection() {
       <View style={styles.chartContainer}>
         <Text style={styles.chartTitle}>{chartData.deviceUsage.title}</Text>
         <View style={styles.chartPlaceholder}>
-          <Text style={styles.chartPlaceholderText}>차트 영역</Text>
-          <Text style={styles.chartDescription}>
+          <Text style={styles.chartPlaceholderText}>준비 중입니다.</Text>
+          {/* <Text style={styles.chartDescription}>
             {chartData.deviceUsage.description}
           </Text>
           <View style={styles.dataPreview}>
@@ -79,7 +79,7 @@ export default function ChartSection() {
               데이터:{" "}
               {chartData.deviceUsage.data.map((d) => d.toFixed(1)).join(", ")}
             </Text>
-          </View>
+          </View> */}
         </View>
       </View>
 
@@ -87,8 +87,8 @@ export default function ChartSection() {
       <View style={styles.chartContainer}>
         <Text style={styles.chartTitle}>{chartData.generalChart.title}</Text>
         <View style={styles.chartPlaceholder}>
-          <Text style={styles.chartPlaceholderText}>차트 영역</Text>
-          <Text style={styles.chartDescription}>
+          <Text style={styles.chartPlaceholderText}>준비 중입니다.</Text>
+          {/* <Text style={styles.chartDescription}>
             {chartData.generalChart.description}
           </Text>
           <View style={styles.dataPreview}>
@@ -96,7 +96,7 @@ export default function ChartSection() {
               데이터:{" "}
               {chartData.generalChart.data.map((d) => d.toFixed(1)).join(", ")}
             </Text>
-          </View>
+          </View> */}
         </View>
       </View>
     </View>

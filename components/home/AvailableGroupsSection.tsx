@@ -1,5 +1,5 @@
 import { IconSymbol } from "@/components/ui/IconSymbol";
-import { challengeApi, ChallengeDTO } from "@/src/services/api";
+import { groupApi, GroupDTO } from "@/src/services/api";
 import { theme } from "@/src/styles/theme";
 import { useRouter } from "expo-router";
 import React, {
@@ -13,6 +13,7 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
+  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -20,49 +21,59 @@ import {
 } from "react-native";
 
 const PersonIcon = require("@/assets/images/common/person_icon.svg").default;
+const HeartIcon = require("@/assets/images/common/heart_icon.svg").default;
+const ChatIcon = require("@/assets/images/common/chat_icon.svg").default;
 
-interface ChallengeSummary {
+interface GroupSummary {
   id: string;
   title: string;
+  description: string;
   participants: number;
+  likes: number;
+  comments: number;
+  avatar?: string | null;
 }
 
-const mapToSummary = (challenge: ChallengeDTO): ChallengeSummary => ({
-  id: String(challenge.id),
-  title: challenge.challengeName ?? "이름 없는 챌린지",
-  participants: challenge.participantCount ?? 0,
+const mapToSummary = (group: GroupDTO): GroupSummary => ({
+  id: String(group.id),
+  title: group.groupName ?? "이름 없는 모임",
+  description: group.groupIntroduction ?? "모임 소개가 아직 준비되지 않았어요.",
+  participants: group.participantCount ?? 0,
+  likes: group.likeCount ?? 0,
+  comments: 0,
+  avatar: group.imageUrl ?? null,
 });
 
 const MAX_COLLAPSED_ITEMS = 3;
 
-export interface ChallengeSectionHandle {
+export interface AvailableGroupsSectionHandle {
   refresh: () => Promise<void>;
 }
 
-const ChallengeSection = forwardRef<ChallengeSectionHandle>(
-  function ChallengeSection(_props, ref) {
+const AvailableGroupsSection = forwardRef<AvailableGroupsSectionHandle>(
+  function AvailableGroupsSection(_props, ref) {
   const router = useRouter();
-  const [challenges, setChallenges] = useState<ChallengeSummary[]>([]);
-  const [activeSort, setActiveSort] = useState<"recent" | "popular">("recent");
+  const [groups, setGroups] = useState<GroupSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeSort, setActiveSort] = useState<"recent" | "popular">("recent");
   const [isExpanded, setIsExpanded] = useState(false);
   const isMountedRef = useRef(true);
 
-  const loadChallenges = useCallback(async () => {
+  const loadGroups = useCallback(async () => {
     setIsLoading(true);
 
     try {
-      const response = await challengeApi.getAvailableChallenges();
+      const response = await groupApi.getAvailableGroups();
 
       if (!isMountedRef.current) {
         return;
       }
 
-      setChallenges(response.map(mapToSummary));
+      setGroups(response.map(mapToSummary));
     } catch (error) {
-      console.error("Available challenges fetch failed:", error);
+      console.error("Available groups fetch failed:", error);
       if (isMountedRef.current) {
-        setChallenges([]);
+        setGroups([]);
       }
     } finally {
       if (isMountedRef.current) {
@@ -73,45 +84,45 @@ const ChallengeSection = forwardRef<ChallengeSectionHandle>(
 
   useEffect(() => {
     isMountedRef.current = true;
-    void loadChallenges();
+    void loadGroups();
 
     return () => {
       isMountedRef.current = false;
     };
-  }, [loadChallenges]);
+  }, [loadGroups]);
 
   useImperativeHandle(
     ref,
     () => ({
-      refresh: loadChallenges,
+      refresh: loadGroups,
     }),
-    [loadChallenges]
+    [loadGroups]
   );
 
-  const sortedChallenges = useMemo(() => {
+  const sortedGroups = useMemo(() => {
     if (activeSort === "popular") {
-      return [...challenges].sort((a, b) => b.participants - a.participants);
+      return [...groups].sort((a, b) => b.likes - a.likes);
     }
 
-    return challenges;
-  }, [activeSort, challenges]);
+    return groups;
+  }, [activeSort, groups]);
 
-  const visibleChallenges = useMemo(() => {
+  const visibleGroups = useMemo(() => {
     if (isExpanded) {
-      return sortedChallenges;
+      return sortedGroups;
     }
 
-    return sortedChallenges.slice(0, MAX_COLLAPSED_ITEMS);
-  }, [isExpanded, sortedChallenges]);
+    return sortedGroups.slice(0, MAX_COLLAPSED_ITEMS);
+  }, [isExpanded, sortedGroups]);
 
-  const hasChallenges = visibleChallenges.length > 0;
-  const canExpand = sortedChallenges.length > MAX_COLLAPSED_ITEMS;
+  const hasGroups = visibleGroups.length > 0;
+  const canExpand = sortedGroups.length > MAX_COLLAPSED_ITEMS;
 
   const handleToggleExpand = () => {
     if (!canExpand) {
       router.push({
         pathname: "/groups",
-        params: { category: "challenge", filter: "available" },
+        params: { category: "group", filter: "available" },
       });
       return;
     }
@@ -122,7 +133,7 @@ const ChallengeSection = forwardRef<ChallengeSectionHandle>(
   const handleViewAll = () => {
     router.push({
       pathname: "/groups",
-      params: { category: "challenge", filter: "available" },
+      params: { category: "group", filter: "available" },
     });
   };
 
@@ -134,10 +145,10 @@ const ChallengeSection = forwardRef<ChallengeSectionHandle>(
         onPress={handleToggleExpand}
       >
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>도전 가능한 챌린지</Text>
+          <Text style={styles.title}>참여 가능한 모임</Text>
         </View>
         <Text style={styles.subtitle}>
-          {canExpand ? (isExpanded ? "접기" : "더보기") : "챌린지 탭으로 이동"}
+          {canExpand ? (isExpanded ? "접기" : "더보기") : "모임 탭으로 이동"}
         </Text>
       </TouchableOpacity>
 
@@ -171,7 +182,7 @@ const ChallengeSection = forwardRef<ChallengeSectionHandle>(
               activeSort === "popular" && styles.activeTabText,
             ]}
           >
-            참여자순
+            인기순
           </Text>
         </TouchableOpacity>
       </View>
@@ -179,31 +190,73 @@ const ChallengeSection = forwardRef<ChallengeSectionHandle>(
       {isLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="small" color={theme.colors.primary} />
-          <Text style={styles.loadingText}>챌린지를 불러오는 중...</Text>
+          <Text style={styles.loadingText}>모임을 불러오는 중...</Text>
         </View>
-      ) : !hasChallenges ? (
+      ) : !hasGroups ? (
         <View style={styles.emptyStateContainer}>
           <Text style={styles.emptyStateText}>
-            참여 가능한 챌린지가 아직 없어요.
+            참여 가능한 모임이 아직 없어요.
           </Text>
         </View>
       ) : (
-        <View style={styles.challengesContainer}>
-          {visibleChallenges.map((challenge) => (
-            <TouchableOpacity key={challenge.id} style={styles.challengeItem}>
-              <View style={styles.challengeContent}>
-                <Text style={styles.challengeTitle} numberOfLines={2}>
-                  {challenge.title}
-                </Text>
-                <View style={styles.participantInfo}>
+        <View style={styles.groupsContainer}>
+          {visibleGroups.map((group) => (
+            <TouchableOpacity key={group.id} style={styles.groupItem}>
+              <View style={styles.groupHeader}>
+                <View style={styles.avatarContainer}>
+                  {group.avatar ? (
+                    <Image
+                      source={{ uri: group.avatar }}
+                      style={styles.avatar}
+                    />
+                  ) : (
+                    <View style={styles.defaultAvatar}>
+                      <Text style={styles.avatarText}>🌱</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.groupInfo}>
+                  <Text style={styles.groupTitle}>{group.title}</Text>
+                  <Text style={styles.groupDescription} numberOfLines={2}>
+                    {group.description}
+                  </Text>
+                </View>
+                <View style={styles.participantBadge}>
                   <PersonIcon
                     width={16}
                     height={16}
                     fill={theme.colors.gray[500]}
                   />
-                  <Text style={styles.participantCount}>
-                    {challenge.participants}
-                  </Text>
+                  <Text style={styles.participantCount}>{group.participants}</Text>
+                </View>
+              </View>
+
+              <View style={styles.groupFooter}>
+                <View style={styles.actionButtons}>
+                  <View style={styles.actionItem}>
+                    <PersonIcon
+                      width={16}
+                      height={16}
+                      fill={theme.colors.gray[500]}
+                    />
+                    <Text style={styles.actionCount}>{group.participants}</Text>
+                  </View>
+                  <View style={styles.actionItem}>
+                    <HeartIcon
+                      width={16}
+                      height={16}
+                      fill={theme.colors.gray[500]}
+                    />
+                    <Text style={styles.actionCount}>{group.likes}</Text>
+                  </View>
+                  <View style={styles.actionItem}>
+                    <ChatIcon
+                      width={16}
+                      height={16}
+                      fill={theme.colors.gray[500]}
+                    />
+                    <Text style={styles.actionCount}>{group.comments}</Text>
+                  </View>
                 </View>
               </View>
             </TouchableOpacity>
@@ -211,13 +264,13 @@ const ChallengeSection = forwardRef<ChallengeSectionHandle>(
         </View>
       )}
 
-      {challenges.length > 0 && (
+      {groups.length > 0 && (
         <TouchableOpacity
           style={styles.viewAllButton}
           activeOpacity={0.8}
           onPress={handleViewAll}
         >
-          <Text style={styles.viewAllText}>챌린지 탭에서 더 보기</Text>
+          <Text style={styles.viewAllText}>모임 탭에서 더 보기</Text>
           <IconSymbol
             name="arrow.up.right"
             size={14}
@@ -229,9 +282,9 @@ const ChallengeSection = forwardRef<ChallengeSectionHandle>(
   );
 });
 
-ChallengeSection.displayName = "ChallengeSection";
+AvailableGroupsSection.displayName = "AvailableGroupsSection";
 
-export default ChallengeSection;
+export default AvailableGroupsSection;
 
 const styles = StyleSheet.create({
   container: {
@@ -309,33 +362,78 @@ const styles = StyleSheet.create({
     color: theme.colors.gray[500],
     textAlign: "center",
   },
-  challengesContainer: {
-    gap: theme.spacing.sm,
+  groupsContainer: {
+    gap: theme.spacing.md,
   },
-  challengeItem: {
+  groupItem: {
     backgroundColor: theme.colors.gray[100],
     borderRadius: theme.borderRadius.sm,
     padding: theme.spacing.md,
-    minHeight: 60,
   },
-  challengeContent: {
+  groupHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    marginBottom: theme.spacing.sm,
   },
-  challengeTitle: {
-    fontSize: theme.typography.body.fontSize,
-    color: theme.colors.text,
+  avatarContainer: {
+    marginRight: theme.spacing.sm,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  defaultAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.gray[300],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    fontSize: 20,
+  },
+  groupInfo: {
     flex: 1,
     marginRight: theme.spacing.sm,
   },
-  participantInfo: {
+  groupTitle: {
+    fontSize: theme.typography.body.fontSize,
+    fontWeight: "600",
+    color: theme.colors.text,
+    marginBottom: theme.spacing.xs,
+  },
+  groupDescription: {
+    fontSize: theme.typography.caption.fontSize,
+    color: theme.colors.gray[500],
+    lineHeight: 16,
+  },
+  participantBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing.xs,
   },
   participantCount: {
     fontSize: theme.typography.body.fontSize,
+    color: theme.colors.text,
+    fontWeight: "600",
+  },
+  groupFooter: {
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.gray[300],
+    paddingTop: theme.spacing.sm,
+  },
+  actionButtons: {
+    flexDirection: "row",
+    gap: theme.spacing.md,
+  },
+  actionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.xs,
+  },
+  actionCount: {
+    fontSize: theme.typography.caption.fontSize,
     color: theme.colors.text,
     fontWeight: "600",
   },

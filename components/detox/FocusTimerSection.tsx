@@ -1,7 +1,7 @@
 import { theme } from "@/src/styles/theme";
-import React, { useState } from "react";
-import { StyleSheet, Text, View, TouchableOpacity } from "react-native";
-import Svg, { Circle } from 'react-native-svg';
+import React from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import Svg, { Circle } from "react-native-svg";
 
 interface FocusTimerSectionProps {
     percentage?: number;

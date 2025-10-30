@@ -9,13 +9,13 @@ import {
 
 import CommentInput from "@/components/community/CommentInput";
 import CommentItem from "@/components/community/CommentItem";
-import MeetingInfo from "@/components/community/MeetingInfo";
+import GroupInfo from "@/components/community/GroupInfo";
 import BottomNavigationBar from "@/components/shared/navigationBar/NavigationBar";
 import TopBar from "@/components/shared/navigationBar/TopBar";
 import { theme } from "@/src/styles/theme";
 
 // 샘플 데이터
-const sampleMeeting = {
+const sampleGroup = {
   id: "1",
   title: "모임 이름이 들어가는 곳임",
   description:
@@ -45,8 +45,8 @@ const sampleComments = [
   },
 ];
 
-export default function MeetingDetailScreen() {
-  const [activeTab, setActiveTab] = useState("meetings");
+export default function GroupDetailScreen() {
+  const [activeTab, setActiveTab] = useState("groups");
   const [comments, setComments] = useState(sampleComments);
 
   const handleTabPress = (tabId: string) => {
@@ -87,7 +87,7 @@ export default function MeetingDetailScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* 모임 정보 */}
-        <MeetingInfo meeting={sampleMeeting} />
+        <GroupInfo group={sampleGroup} />
 
         {/* 댓글 섹션 */}
         <View style={styles.commentsContainer}>

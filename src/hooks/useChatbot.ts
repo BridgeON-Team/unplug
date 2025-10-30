@@ -102,14 +102,24 @@ export const useChatbot = () => {
   };
 
   // 메시지 전송
-  const sendMessage = async (message: string) => {
-    if (!username || !state.currentThread) {
+  const sendMessage = async (
+    message: string,
+    options?: { threadId?: number }
+  ) => {
+    if (!username) {
+      return { success: false, message: "사용자 정보가 없습니다." };
+    }
+
+    const targetThreadId =
+      options?.threadId ?? state.currentThread?.threadId ?? null;
+
+    if (!targetThreadId) {
       return { success: false, message: "스레드가 선택되지 않았습니다." };
     }
 
     try {
       const messageData: ChatMessageInput = {
-        threadId: state.currentThread.threadId,
+        threadId: targetThreadId,
         username,
         sender: "USER",
         message,
@@ -119,7 +129,10 @@ export const useChatbot = () => {
 
       setState((prev) => ({
         ...prev,
-        messages: [...prev.messages, sentMessage],
+        messages:
+          prev.currentThread?.threadId === targetThreadId
+            ? [...prev.messages, sentMessage]
+            : prev.messages,
       }));
 
       return { success: true, message: "메시지가 전송되었습니다." };
@@ -128,6 +141,40 @@ export const useChatbot = () => {
       return { success: false, message: "메시지 전송에 실패했습니다." };
     }
   };
+
+  const refreshMessages = useCallback(
+    async (threadId?: number) => {
+      if (!username) {
+        return;
+      }
+
+      const targetThreadId = threadId ?? state.currentThread?.threadId;
+      if (!targetThreadId) {
+        return;
+      }
+
+      try {
+        const messages = await chatbotApi.getMessagesByThread(
+          username,
+          targetThreadId
+        );
+
+        setState((prev) => {
+          if (prev.currentThread?.threadId !== targetThreadId) {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            messages,
+          };
+        });
+      } catch (error) {
+        console.error("메시지 목록 새로고침 오류:", error);
+      }
+    },
+    [state.currentThread?.threadId, username]
+  );
 
   // 스레드 삭제
   const deleteThread = async (threadId: number) => {
@@ -190,5 +237,6 @@ export const useChatbot = () => {
     sendMessage,
     deleteThread,
     deleteMessage,
+    refreshMessages,
   };
 };

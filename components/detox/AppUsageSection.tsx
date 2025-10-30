@@ -1,7 +1,7 @@
 import { theme } from "@/src/styles/theme";
 import React from "react";
-import { StyleSheet, Text, View, TouchableOpacity } from "react-native";
-import { AntDesign, FontAwesome } from '@expo/vector-icons';
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { AntDesign } from "@expo/vector-icons";
 
 interface AppUsageItem {
     id: string;

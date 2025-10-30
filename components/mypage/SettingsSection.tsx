@@ -8,11 +8,10 @@ import {
   Alert,
   Modal,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 
 export default function SettingsSection() {
@@ -87,7 +86,7 @@ export default function SettingsSection() {
   return (
     <View style={styles.container}>
       <View style={styles.settingsContainer}>
-        <View style={styles.settingItem}>
+        {/* <View style={styles.settingItem}>
           <Text style={styles.settingLabel}>다크 모드</Text>
           <Switch
             value={darkMode}
@@ -98,11 +97,11 @@ export default function SettingsSection() {
             }}
             thumbColor={theme.colors.white}
           />
-        </View>
+        </View> */}
 
         {isAuthenticated && (
           <>
-            <View style={styles.settingItem}>
+            {/* <View style={styles.settingItem}>
               <Text style={styles.settingLabel}>알림 설정</Text>
               <Switch
                 value={notifications}
@@ -113,7 +112,7 @@ export default function SettingsSection() {
                 }}
                 thumbColor={theme.colors.white}
               />
-            </View>
+            </View> */}
 
             <TouchableOpacity
               style={styles.logoutButton}
@@ -210,7 +209,7 @@ export default function SettingsSection() {
                   styles.modalButtonSpacing,
                   styles.modalDangerButton,
                   (!canConfirmWithdrawal || isProcessing) &&
-                    styles.modalButtonDisabled,
+                  styles.modalButtonDisabled,
                 ]}
                 onPress={handleWithdrawal}
                 disabled={!canConfirmWithdrawal || isProcessing}
@@ -222,7 +221,7 @@ export default function SettingsSection() {
                     style={[
                       styles.modalDangerText,
                       (!canConfirmWithdrawal || isProcessing) &&
-                        styles.modalDangerTextDisabled,
+                      styles.modalDangerTextDisabled,
                     ]}
                   >
                     탈퇴하기
