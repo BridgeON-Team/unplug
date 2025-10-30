@@ -175,12 +175,8 @@ export default function SignupScreen() {
       });
 
       if (response.success) {
-        Alert.alert("회원가입 완료", "로그인 화면으로 이동합니다.", [
-          {
-            text: "확인",
-            onPress: () => router.replace("/login"),
-          },
-        ]);
+        router.replace("/login");
+        Alert.alert("회원가입 완료", "로그인 화면으로 이동합니다.");
       } else {
         Alert.alert("회원가입 실패", response.message || "다시 시도해주세요.");
       }

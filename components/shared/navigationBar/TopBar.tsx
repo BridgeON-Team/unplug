@@ -1,3 +1,8 @@
+import {
+  moderateScale,
+  scale as scaleSize,
+  verticalScaleSize,
+} from "@/src/styles/responsive";
 import { theme } from "@/src/styles/theme";
 import React from "react";
 import { StyleSheet, TouchableOpacity, View } from "react-native";
@@ -12,15 +17,17 @@ interface TopBarProps {
 export default function TopBar({ onNotificationPress }: TopBarProps) {
   return (
     <View style={styles.container}>
-      <View style={styles.logoContainer}>
-        <UnplugLogo width={170} height={60} />
+      <View style={styles.logoWrapper}>
+        <UnplugLogo width={scaleSize(132)} height={verticalScaleSize(46.2)} />
       </View>
 
       <TouchableOpacity
         style={styles.notificationButton}
         onPress={onNotificationPress}
+        activeOpacity={0.7}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       >
-        <AlarmIcon width={24} height={24} fill={theme.colors.text} />
+        <AlarmIcon width={scaleSize(24)} height={verticalScaleSize(24)} />
       </TouchableOpacity>
     </View>
   );
@@ -31,20 +38,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 0,
-    paddingLeft: 0,
-    paddingRight: theme.spacing.md,
-    height: 80,
+    paddingHorizontal: moderateScale(theme.spacing.sm),
+    paddingVertical: moderateScale(theme.spacing.sm),
     backgroundColor: theme.colors.background,
+    minHeight: verticalScaleSize(58),
   },
-  logoContainer: {
+  logoWrapper: {
+    flexShrink: 1,
     flexDirection: "row",
     alignItems: "center",
-    paddingLeft: 0,
-    marginTop: 20,
+    justifyContent: "flex-start",
   },
   notificationButton: {
-    padding: theme.spacing.sm,
+    padding: moderateScale(theme.spacing.sm),
     alignItems: "center",
     justifyContent: "center",
   },

@@ -3,7 +3,14 @@ import { useMyPage } from "@/src/hooks/useMyPage";
 import { surveyApi, SurveyQuestion, SurveyResult } from "@/src/services/api";
 import { theme } from "@/src/styles/theme";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,6 +21,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { RefreshableSectionHandle } from "@/src/types/refresh";
 
 // SVG 아이콘 import
 const CameraIcon = require("@/assets/images/common/chat_icon.svg").default;
@@ -26,7 +34,10 @@ const LIKERT_OPTIONS = [
   { value: 5, label: "매우 그렇다" },
 ];
 
-export default function ProfileSection() {
+const ProfileSection = forwardRef<RefreshableSectionHandle>(function ProfileSection(
+  _props,
+  ref
+) {
   const { username, isAuthenticated } = useAuthContext();
   const router = useRouter();
   const [resolvedUsername, setResolvedUsername] = useState<string | null>(
@@ -51,6 +62,8 @@ export default function ProfileSection() {
     surveyResult,
     isLoading,
     error,
+    fetchUserInfo,
+    fetchSurveyResult,
   } = useMyPage(isAuthenticated ? resolvedUsername : null);
 
   const loadSurveyQuestions = useCallback(async () => {
@@ -71,8 +84,6 @@ export default function ProfileSection() {
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
-
     const resolveUsername = async () => {
       if (!isAuthenticated) {
         setResolvedUsername(null);
@@ -91,10 +102,6 @@ export default function ProfileSection() {
     };
 
     resolveUsername();
-
-    return () => {
-      isMounted = false;
-    };
   }, [username, isAuthenticated]);
 
   useEffect(() => {
@@ -165,6 +172,18 @@ export default function ProfileSection() {
       setSubmittedResult(null);
     }
   }, [surveyResult]);
+
+  const handleProfileRefresh = useCallback(async () => {
+    await Promise.all([fetchUserInfo(), fetchSurveyResult()]);
+  }, [fetchSurveyResult, fetchUserInfo]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      refresh: handleProfileRefresh,
+    }),
+    [handleProfileRefresh]
+  );
 
   const handleGotoNext = () => {
     if (!surveyQuestions.length) {
@@ -522,7 +541,11 @@ export default function ProfileSection() {
       </Modal>
     </View>
   );
-}
+});
+
+ProfileSection.displayName = "ProfileSection";
+
+export default ProfileSection;
 
 const styles = StyleSheet.create({
   container: {

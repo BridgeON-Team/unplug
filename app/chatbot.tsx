@@ -1,8 +1,11 @@
 import React, { useState } from "react";
 import { StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import ChatbotInterface from "@/components/chatbot/ChatbotInterface";
+import ChatbotScreenLayout from "@/components/chatbot/ChatbotScreenLayout";
+import PageHeading from "@/components/shared/PageHeading";
 import BottomNavigationBar from "@/components/shared/navigationBar/NavigationBar";
+import TopBar from "@/components/shared/navigationBar/TopBar";
 import { theme } from "@/src/styles/theme";
 
 export default function ChatbotScreen() {
@@ -14,31 +17,42 @@ export default function ChatbotScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      {/* 챗봇 인터페이스 */}
-      <ChatbotInterface />
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.container}>
+        <View style={styles.topBarContainer}>
+          <TopBar onNotificationPress={() => null} />
+        </View>
 
-      {/* 고정된 하단 네비게이션 바 */}
-      <View style={styles.bottomBarContainer}>
+        <PageHeading title="챗봇" subtitle="스레드를 선택해 대화를 시작하세요" />
+
+        <View style={styles.interfaceContainer}>
+          <ChatbotScreenLayout />
+        </View>
+
         <BottomNavigationBar
           activeTab={activeTab}
           onTabPress={handleTabPress}
         />
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  bottomBarContainer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    zIndex: 1000,
+  topBarContainer: {
+    paddingHorizontal: 0,
+    marginBottom: theme.spacing.xs,
+  },
+  interfaceContainer: {
+    flex: 1,
+    paddingBottom: theme.spacing.xs,
   },
 });

@@ -1,23 +1,17 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-
-import ChartSection from "@/components/mypage/ChartSection";
-import ProfileSection from "@/components/mypage/ProfileSection";
-import SettingsSection from "@/components/mypage/SettingsSection";
-import RefreshableScrollView from "@/components/shared/RefreshableScrollView";
 import BottomNavigationBar from "@/components/shared/navigationBar/NavigationBar";
 import TopBar from "@/components/shared/navigationBar/TopBar";
 import PageHeading from "@/components/shared/PageHeading";
+import RefreshableScrollView from "@/components/shared/RefreshableScrollView";
 import { theme } from "@/src/styles/theme";
-import { RefreshableSectionHandle } from "@/src/types/refresh";
 
 const NAVIGATION_PADDING = 72;
 
-export default function MyPageScreen() {
-  const [activeTab, setActiveTab] = useState("my");
+export default function DigitalDetoxScreen() {
+  const [activeTab, setActiveTab] = useState("tools");
   const insets = useSafeAreaInsets();
-  const profileSectionRef = useRef<RefreshableSectionHandle>(null);
 
   const handleTabPress = (tabId: string) => {
     setActiveTab(tabId);
@@ -28,18 +22,13 @@ export default function MyPageScreen() {
     console.log("Notification pressed");
   };
 
-  const scrollPaddingBottom = useMemo(
+  const scrollInset = useMemo(
     () => insets.bottom + NAVIGATION_PADDING,
     [insets.bottom]
   );
 
   const handleRefresh = useCallback(async () => {
-    if (profileSectionRef.current) {
-      await profileSectionRef.current.refresh();
-      return;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, 400));
   }, []);
 
   return (
@@ -49,20 +38,22 @@ export default function MyPageScreen() {
           <TopBar onNotificationPress={handleNotificationPress} />
         </View>
 
-        <PageHeading title="마이페이지" subtitle="내 활동과 설정" />
+        <PageHeading title="제한 도구" subtitle="디지털 디톡스" />
 
         <RefreshableScrollView
           style={styles.scrollContainer}
           showsVerticalScrollIndicator={false}
           onRefreshRequest={handleRefresh}
-          contentContainerStyle={{ paddingBottom: scrollPaddingBottom }}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: scrollInset }]}
         >
-          <ProfileSection ref={profileSectionRef} />
-          <ChartSection />
-          <SettingsSection />
+          <Text>준비중입니다</Text>
+          {/* {renderContent()} */}
         </RefreshableScrollView>
 
-        <BottomNavigationBar activeTab={activeTab} onTabPress={handleTabPress} />
+        <BottomNavigationBar
+          activeTab={activeTab}
+          onTabPress={handleTabPress}
+        />
       </View>
     </SafeAreaView>
   );
@@ -84,5 +75,8 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flex: 1,
     paddingHorizontal: theme.spacing.md,
+  },
+  scrollContent: {
+    paddingTop: theme.spacing.sm,
   },
 });
