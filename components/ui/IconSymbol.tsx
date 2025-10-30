@@ -23,6 +23,7 @@ const MAPPING = {
   'arrow.up.right': 'open-in-new',
   'sidebar.left': 'view-sidebar',
   'plus.circle': 'add-circle',
+  'keyboard.chevron.compact.down': 'keyboard-hide',
 } as IconMapping;
 
 /**

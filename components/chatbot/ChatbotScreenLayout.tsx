@@ -9,6 +9,8 @@ import {
   Animated as RNAnimated,
   Dimensions,
   Easing,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   RefreshControl,
@@ -20,11 +22,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Reanimated, {
-  useAnimatedKeyboard,
-  useAnimatedStyle,
-  withTiming,
-} from "react-native-reanimated";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const DRAWER_WIDTH = Math.min(SCREEN_WIDTH * 0.75, 280);
@@ -42,6 +39,7 @@ export default function ChatbotScreenLayout() {
     sendMessage,
     deleteThread,
     fetchMyThreads,
+    refreshMessages,
   } = useChatbot();
 
   const [message, setMessage] = useState("");
@@ -49,46 +47,52 @@ export default function ChatbotScreenLayout() {
   const [isDrawerOpen, setDrawerOpen] = useState(false);
   const [isCreateModalVisible, setCreateModalVisible] = useState(false);
   const [isCreating, setCreating] = useState(false);
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
   const drawerAnim = useRef(new RNAnimated.Value(-DRAWER_WIDTH)).current;
   const newThreadInputRef = useRef<TextInput | null>(null);
   const insets = useSafeAreaInsets();
-  const keyboard = useAnimatedKeyboard();
-
-  const messageInputAnimatedStyle = useAnimatedStyle(() => {
-    const keyboardHeight = keyboard.height.value;
-    const offset =
-      Platform.OS === "ios"
-        ? keyboardHeight
-        : Math.max(0, keyboardHeight - insets.bottom);
-
-    return {
-      transform: [
-        {
-          translateY: withTiming(-offset, { duration: 160 }),
-        },
-      ],
-      marginBottom: withTiming(offset, { duration: 160 }),
-    };
-  });
-
-  const messageInputSafeAreaStyle = useMemo(
-    () => ({
-      paddingBottom: Math.max(theme.spacing.sm, insets.bottom),
-    }),
-    [insets.bottom]
-  );
+  const keyboardVerticalOffset = useMemo(() => {
+    const estimatedHeaderHeight = 56; // top bar
+    const pageHeadingHeight = 64;
+    return insets.top + estimatedHeaderHeight + pageHeadingHeight;
+  }, [insets.top]);
 
   const handleMessagesRefresh = useCallback(async () => {
     if (currentThread) {
-      await selectThread(currentThread.threadId);
+      await refreshMessages(currentThread.threadId);
     } else {
       await fetchMyThreads();
     }
-  }, [currentThread, fetchMyThreads, selectThread]);
+  }, [currentThread, fetchMyThreads, refreshMessages]);
 
   const { refreshControlProps: messagesRefreshProps } =
     useRefreshControl(handleMessagesRefresh);
+
+  useEffect(() => {
+    if (!currentThread?.threadId) {
+      return;
+    }
+
+    let isMounted = true;
+
+    const refresh = () => {
+      if (isMounted) {
+        refreshMessages(currentThread.threadId).catch((error) => {
+          console.error("메시지 자동 새로고침 오류:", error);
+        });
+      }
+    };
+
+    refresh();
+
+    const intervalId = setInterval(refresh, 5000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  }, [currentThread?.threadId, refreshMessages]);
 
   const toggleDrawer = () => {
     const next = !isDrawerOpen;
@@ -142,9 +146,26 @@ export default function ChatbotScreenLayout() {
       return;
     }
 
-    const result = await sendMessage(trimmed);
+    let activeThreadId = currentThread?.threadId;
+
+    if (!activeThreadId) {
+      const titleCandidate = trimmed.split("\n")[0].slice(0, 30).trim();
+      const threadTitle = titleCandidate || "새로운 대화";
+
+      const createResult = await createThread(threadTitle);
+      if (!createResult.success || !createResult.thread) {
+        Alert.alert("오류", createResult.message);
+        return;
+      }
+
+      activeThreadId = createResult.thread.threadId;
+      await selectThread(activeThreadId);
+    }
+
+    const result = await sendMessage(trimmed, { threadId: activeThreadId });
     if (result.success) {
       setMessage("");
+      await refreshMessages(activeThreadId);
     } else {
       Alert.alert("오류", result.message);
     }
@@ -165,6 +186,20 @@ export default function ChatbotScreenLayout() {
       return () => clearTimeout(focusTimer);
     }
   }, [isCreateModalVisible]);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener("keyboardDidShow", () => {
+      setKeyboardVisible(true);
+    });
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
+      setKeyboardVisible(false);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
 
   const handleDeleteThread = async (threadId: number) => {
@@ -270,12 +305,17 @@ export default function ChatbotScreenLayout() {
 
   return (
     <>
-      <View style={styles.container}>
-        <Drawer />
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoid}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={keyboardVerticalOffset}
+      >
+        <View style={styles.container}>
+          <Drawer />
 
-        {isDrawerOpen && (
-          <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={toggleDrawer} />
-        )}
+          {isDrawerOpen && (
+            <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={toggleDrawer} />
+          )}
 
         <View style={styles.contentContainer}>
           <View style={styles.chatHeader}>
@@ -310,62 +350,80 @@ export default function ChatbotScreenLayout() {
                 <ActivityIndicator color={theme.colors.primary} size="large" />
               </View>
             ) : currentThread ? (
-              <>
-                <ScrollView
-                  style={styles.messagesList}
-                  contentContainerStyle={styles.messagesContent}
-                  refreshControl={
-                    <RefreshControl {...messagesRefreshProps} />
-                  }
-                >
-                  {messages.map((msg, index) => (
-                    <View
-                      key={index}
+              <ScrollView
+                style={styles.messagesList}
+                contentContainerStyle={styles.messagesContent}
+                keyboardShouldPersistTaps="handled"
+                refreshControl={<RefreshControl {...messagesRefreshProps} />}
+              >
+                {messages.map((msg, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.messageItem,
+                      msg.sender === "USER" ? styles.userMessage : styles.botMessage,
+                    ]}
+                  >
+                    <Text
                       style={[
-                        styles.messageItem,
-                        msg.sender === "USER" ? styles.userMessage : styles.botMessage,
+                        styles.messageText,
+                        msg.sender === "USER" && styles.userMessageText,
                       ]}
                     >
-                      <Text
-                        style={[
-                          styles.messageText,
-                          msg.sender === "USER" && styles.userMessageText,
-                        ]}
-                      >
-                        {msg.message}
-                      </Text>
-                    </View>
-                  ))}
-                </ScrollView>
-
-                <Reanimated.View
-                  style={[
-                    styles.messageInputContainer,
-                    messageInputSafeAreaStyle,
-                    messageInputAnimatedStyle,
-                  ]}
-                >
-                  <TextInput
-                    style={styles.messageInput}
-                    placeholder="메시지를 입력하세요..."
-                    placeholderTextColor={theme.colors.gray[500]}
-                    value={message}
-                    onChangeText={setMessage}
-                    multiline
-                  />
-                  <TouchableOpacity style={styles.sendButton} onPress={handleSendMessage}>
-                    <Text style={styles.sendButtonText}>전송</Text>
-                  </TouchableOpacity>
-                </Reanimated.View>
-              </>
+                      {msg.message}
+                    </Text>
+                  </View>
+                ))}
+              </ScrollView>
             ) : (
               <View style={styles.noThreadContainer}>
-                <Text style={styles.noThreadText}>스레드를 선택하거나 새로 생성해주세요.</Text>
+                <Text style={styles.noThreadText}>
+                  첫 메시지를 입력하면 새로운 스레드가 생성됩니다.
+                </Text>
               </View>
             )}
+
+            <View
+              style={[
+                styles.messageInputContainer,
+                { paddingBottom: Math.max(theme.spacing.xs, insets.bottom) },
+              ]}
+            >
+              {isKeyboardVisible ? (
+                <TouchableOpacity
+                  style={styles.dismissKeyboardButton}
+                  activeOpacity={0.8}
+                  onPress={() => Keyboard.dismiss()}
+                >
+                  <IconSymbol
+                    name="keyboard.chevron.compact.down"
+                    color={theme.colors.gray[500]}
+                    size={20}
+                  />
+                </TouchableOpacity>
+              ) : null}
+
+              <TextInput
+                style={styles.messageInput}
+                placeholder="메시지를 입력하세요..."
+                placeholderTextColor={theme.colors.gray[500]}
+                value={message}
+                onChangeText={setMessage}
+                textAlign="left"
+                multiline
+              />
+              <TouchableOpacity
+                style={styles.sendButton}
+                onPress={handleSendMessage}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.sendButtonText}>전송</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
+      </KeyboardAvoidingView>
 
       <Modal
         visible={isCreateModalVisible}
@@ -423,6 +481,9 @@ export default function ChatbotScreenLayout() {
 }
 
 const styles = StyleSheet.create({
+  keyboardAvoid: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     flexDirection: "row",
@@ -492,26 +553,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: theme.colors.gray[200],
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
     backgroundColor: theme.colors.background,
+    minHeight: MESSAGE_INPUT_BASE_HEIGHT - 16,
+    gap: theme.spacing.xs,
   },
   messageInput: {
     flex: 1,
-    minHeight: Platform.OS === "ios" ? 40 : 48,
-    maxHeight: 120,
+    minHeight: Platform.OS === "ios" ? 36 : 40,
+    maxHeight: 100,
     backgroundColor: theme.colors.gray[100],
     borderRadius: theme.borderRadius.sm,
-    paddingHorizontal: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xs,
     color: theme.colors.text,
+    textAlign: "left",
   },
   sendButton: {
     backgroundColor: theme.colors.primary,
     paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
     borderRadius: theme.borderRadius.sm,
-    marginLeft: theme.spacing.sm,
+    minHeight: Platform.OS === "ios" ? 36 : 40,
+    minWidth: 60,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dismissKeyboardButton: {
+    padding: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.gray[100],
   },
   sendButtonText: {
     color: theme.colors.white,
