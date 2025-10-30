@@ -28,37 +28,37 @@ export const theme = {
   },
   typography: {
     h1: {
-      fontSize: 32,
-      fontWeight: "bold",
-      lineHeight: 40,
-    },
-    h2: {
       fontSize: 28,
       fontWeight: "bold",
-      lineHeight: 36,
+      lineHeight: 34,
     },
-    h3: {
+    h2: {
       fontSize: 24,
       fontWeight: "bold",
-      lineHeight: 32,
+      lineHeight: 30,
+    },
+    h3: {
+      fontSize: 20,
+      fontWeight: "bold",
+      lineHeight: 26,
     },
     body: {
-      fontSize: 16,
+      fontSize: 15,
       fontWeight: "400",
-      lineHeight: 22,
+      lineHeight: 21,
     },
     caption: {
       fontSize: 12,
       fontWeight: "300",
-      lineHeight: 18,
+      lineHeight: 16,
     },
   },
   spacing: {
     xs: 4,
     sm: 8,
-    md: 16,
-    lg: 24,
-    xl: 32,
+    md: 14,
+    lg: 20,
+    xl: 28,
   },
   borderRadius: {
     sm: 5,
