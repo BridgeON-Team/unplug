@@ -9,16 +9,23 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bridgeon.unplug",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
     },
     "android": {
+      "package": "com.bridgeon.unplug",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff",
-        "package": "com.bridgeon.unplug",
-        "versionCode": 1
+        "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "usesCleartextTraffic": true
     },
     "web": {
       "bundler": "metro",
@@ -39,6 +46,15 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "env": "dev",
+      "apiBaseUrl": "http://ingress-ngi-ingress-ngin-a391a-111639131-472d9c0a367e.kr.lb.naverncp.com",
+      "sentryDsn": "",
+      "router": {},
+      "eas": {
+        "projectId": "79af6d06-f492-4493-ba10-a1b8e748371c"
+      }
     }
   }
 }

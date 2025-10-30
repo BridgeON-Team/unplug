@@ -27,7 +27,6 @@ export default function TopBar({ onNotificationPress }: TopBarProps) {
         activeOpacity={0.7}
         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       >
-        <AlarmIcon width={scaleSize(24)} height={verticalScaleSize(24)} />
       </TouchableOpacity>
     </View>
   );

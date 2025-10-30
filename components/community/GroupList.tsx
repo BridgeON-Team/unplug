@@ -1,3 +1,4 @@
+import { IconSymbol } from "@/components/ui/IconSymbol";
 import {
   challengeApi,
   ChallengeDTO,
@@ -5,6 +6,12 @@ import {
   GroupDTO,
 } from "@/src/services/api";
 import { theme } from "@/src/styles/theme";
+import {
+  ChallengeTodoItem,
+  encodeChallengeTodoContent,
+  getChallengeContentSummary,
+  parseChallengeContent,
+} from "@/src/utils/challengeTodo";
 import React, {
   forwardRef,
   useCallback,
@@ -32,6 +39,9 @@ import {
 import GroupCard from "./GroupCard";
 import { RefreshableSectionHandle } from "@/src/types/refresh";
 
+const PersonIcon = require("@/assets/images/common/person_icon.svg").default;
+const HeartIcon = require("@/assets/images/common/heart_icon.svg").default;
+
 type MainCategory = "group" | "challenge";
 type FilterKey = "all" | "available" | "participating";
 type GroupKey = "available" | "participating";
@@ -55,6 +65,11 @@ interface GroupListItem {
   likes: number;
   isParticipating?: boolean;
   comments?: number;
+  isTodoFormat?: boolean;
+  todoItems?: ChallengeTodoItem[];
+  todoDescription?: string | null;
+  todoName?: string | null;
+  rawContent?: string | null;
 }
 
 interface ViewState {
@@ -114,6 +129,108 @@ const createInitialChallengeState = (): Record<
   participating: { data: [], loading: false, loaded: false, error: null },
 });
 
+const isLikelyJsonString = (value: string | null | undefined): boolean => {
+  if (!value) {
+    return false;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  const startsWith = trimmed[0];
+  const endsWith = trimmed[trimmed.length - 1];
+
+  return (
+    (startsWith === "{" && endsWith === "}") ||
+    (startsWith === "[" && endsWith === "]")
+  );
+};
+
+const getPlainTextIfNotJson = (value: string | null | undefined): string | null => {
+  if (!value) {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return isLikelyJsonString(trimmed) ? null : trimmed;
+};
+
+const getPlainChallengeIntroduction = (value: string | null | undefined) =>
+  getPlainTextIfNotJson(value);
+
+const extractTodoData = (
+  challenge: ChallengeDTO
+):
+  | {
+      parsed: ReturnType<typeof parseChallengeContent>;
+      source: "introduction" | "name";
+      raw: string | null;
+    }
+  | null => {
+  const parsedIntro = parseChallengeContent(challenge.challengeIntroduction);
+  if (parsedIntro.isTodoFormat) {
+    return {
+      parsed: parsedIntro,
+      source: "introduction",
+      raw: challenge.challengeIntroduction ?? null,
+    };
+  }
+
+  const parsedName = parseChallengeContent(challenge.challengeName);
+  if (parsedName.isTodoFormat) {
+    return {
+      parsed: parsedName,
+      source: "name",
+      raw: challenge.challengeName ?? null,
+    };
+  }
+
+  return null;
+};
+
+const deriveChallengeTitle = (
+  challenge: ChallengeDTO,
+  parsedName?: string | null
+): string => {
+  const sanitizedParsedName = parsedName?.trim();
+  if (sanitizedParsedName) {
+    return sanitizedParsedName;
+  }
+
+  const plainName = getPlainTextIfNotJson(challenge.challengeName);
+  if (plainName) {
+    return plainName;
+  }
+
+  return "이름 없는 챌린지";
+};
+
+const deriveChallengeSummary = (
+  challenge: ChallengeDTO,
+  parsed: ReturnType<typeof parseChallengeContent> | null,
+  source: "introduction" | "name" | undefined
+): string | null => {
+  if (parsed) {
+    const summary = getChallengeContentSummary(parsed);
+    if (summary) {
+      return summary;
+    }
+    if (source !== "introduction") {
+      const plainIntro = getPlainChallengeIntroduction(challenge.challengeIntroduction);
+      if (plainIntro) {
+        return plainIntro;
+      }
+    }
+    return null;
+  }
+
+  return getPlainChallengeIntroduction(challenge.challengeIntroduction);
+};
+
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof Error && error.message) {
     return error.message;
@@ -141,18 +258,30 @@ const mapGroupToItem = (
 const mapChallengeToItem = (
   challenge: ChallengeDTO,
   isParticipating = false
-): GroupListItem => ({
-  id: String(challenge.id),
-  sourceId: challenge.id,
-  type: "challenge",
-  title: challenge.challengeName ?? "이름 없는 챌린지",
-  description: challenge.challengeIntroduction ?? "",
-  image: challenge.imageUrl ?? null,
-  participants: challenge.participantCount ?? 0,
-  likes: challenge.likeCount ?? 0,
-  isParticipating,
-  comments: 0,
-});
+): GroupListItem => {
+  const todoData = extractTodoData(challenge);
+  const parsed = todoData?.parsed ?? null;
+  const title = deriveChallengeTitle(challenge, parsed?.name ?? null);
+  const summary = deriveChallengeSummary(challenge, parsed, todoData?.source);
+
+  return {
+    id: String(challenge.id),
+    sourceId: challenge.id,
+    type: "challenge",
+    title,
+    description: summary,
+    image: challenge.imageUrl ?? null,
+    participants: challenge.participantCount ?? 0,
+    likes: challenge.likeCount ?? 0,
+    isParticipating,
+    comments: 0,
+    isTodoFormat: Boolean(todoData),
+    todoItems: parsed?.items ?? [],
+    todoDescription: parsed?.description ?? null,
+    todoName: parsed?.name ?? null,
+    rawContent: todoData?.raw ?? null,
+  };
+};
 
 const mergeItems = (
   available: GroupListItem[],
@@ -196,7 +325,10 @@ ref) {
   const [groupIntroInput, setGroupIntroInput] = useState("");
   const [groupCreateLoading, setGroupCreateLoading] = useState(false);
   const [isChallengeCreateVisible, setChallengeCreateVisible] = useState(false);
+  const [challengeNameInput, setChallengeNameInput] = useState("");
   const [challengeContentInput, setChallengeContentInput] = useState("");
+  const [challengeTodoInput, setChallengeTodoInput] = useState("");
+  const [challengeTodoItems, setChallengeTodoItems] = useState<ChallengeTodoItem[]>([]);
   const [challengeCreateLoading, setChallengeCreateLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState<GroupListItem | null>(null);
   const [isDetailVisible, setDetailVisible] = useState(false);
@@ -209,6 +341,52 @@ ref) {
     useState<ChallengeDTO[]>([]);
   const [detailActionLoadingId, setDetailActionLoadingId] = useState<string | null>(
     null
+  );
+  const [todoCompletion, setTodoCompletion] = useState<
+    Record<string, Record<string, boolean>>
+  >({});
+
+  const toggleTodoCompletion = useCallback(
+    (challengeId: number | string, todoId: string) => {
+      const key = String(challengeId);
+      setTodoCompletion((prev) => {
+        const current = prev[key] ?? {};
+        return {
+          ...prev,
+          [key]: {
+            ...current,
+            [todoId]: !current[todoId],
+          },
+        };
+      });
+    },
+    []
+  );
+
+  const isTodoListComplete = useCallback(
+    (challengeId: number | string, items: ChallengeTodoItem[]) => {
+      if (items.length === 0) {
+        return true;
+      }
+
+      const key = String(challengeId);
+      const completion = todoCompletion[key] ?? {};
+      return items.every((item) => Boolean(completion[item.id]));
+    },
+    [todoCompletion]
+  );
+
+  const getTodoProgress = useCallback(
+    (challengeId: number | string, items: ChallengeTodoItem[]) => {
+      const key = String(challengeId);
+      const completion = todoCompletion[key] ?? {};
+      const completed = items.filter((item) => completion[item.id]).length;
+      return {
+        completed,
+        total: items.length,
+      };
+    },
+    [todoCompletion]
   );
 
   const updateSelectedItemFromStore = useCallback((item: GroupListItem) => {
@@ -318,60 +496,6 @@ ref) {
     setDetailError(null);
     setDetailActionLoadingId(null);
   }, []);
-
-  const handleSubmitGroupCreate = useCallback(async () => {
-    const trimmedName = groupNameInput.trim();
-    const trimmedIntro = groupIntroInput.trim();
-
-    if (!trimmedName) {
-      Alert.alert("확인 필요", "모임 이름을 입력해주세요.");
-      return;
-    }
-
-    try {
-      setGroupCreateLoading(true);
-      await groupApi.createGroup({
-        groupName: trimmedName,
-        groupIntroduction: trimmedIntro || undefined,
-      });
-
-      setGroupNameInput("");
-      setGroupIntroInput("");
-      setGroupCreateVisible(false);
-      await handleRefresh();
-    } catch (error) {
-      Alert.alert(
-        "오류",
-        getErrorMessage(error, "모임 생성 중 문제가 발생했습니다.")
-      );
-    } finally {
-      setGroupCreateLoading(false);
-    }
-  }, [groupNameInput, groupIntroInput, handleRefresh]);
-
-  const handleSubmitChallengeCreate = useCallback(async () => {
-    const trimmedContent = challengeContentInput.trim();
-
-    if (!trimmedContent) {
-      Alert.alert("확인 필요", "챌린지 내용을 입력해주세요.");
-      return;
-    }
-
-    try {
-      setChallengeCreateLoading(true);
-      await challengeApi.createChallenge({ content: trimmedContent });
-      setChallengeContentInput("");
-      setChallengeCreateVisible(false);
-      await handleRefresh();
-    } catch (error) {
-      Alert.alert(
-        "오류",
-        getErrorMessage(error, "챌린지 생성 중 문제가 발생했습니다.")
-      );
-    } finally {
-      setChallengeCreateLoading(false);
-    }
-  }, [challengeContentInput, handleRefresh]);
 
   const fetchGroupData = useCallback(
     async (target: GroupKey, options: { force?: boolean } = {}) => {
@@ -643,6 +767,17 @@ ref) {
         return;
       }
 
+      if (
+        item.type === "challenge" &&
+        item.isParticipating &&
+        item.todoItems &&
+        item.todoItems.length > 0 &&
+        !isTodoListComplete(item.id, item.todoItems)
+      ) {
+        Alert.alert("확인 필요", "모든 TODO를 완료해야 챌린지를 종료할 수 있어요.");
+        return;
+      }
+
       setActionLoadingId(item.id);
 
       try {
@@ -660,8 +795,31 @@ ref) {
         } else {
           if (item.isParticipating) {
             await challengeApi.completeChallenge(item.sourceId);
+            if (item.todoItems && item.todoItems.length > 0) {
+              setTodoCompletion((prev) => {
+                const key = item.id;
+                if (!(key in prev)) {
+                  return prev;
+                }
+                const next = { ...prev };
+                delete next[key];
+                return next;
+              });
+            }
           } else {
             await challengeApi.startChallenge(item.sourceId);
+            if (item.todoItems && item.todoItems.length > 0) {
+              setTodoCompletion((prev) => ({
+                ...prev,
+                [item.id]: item.todoItems!.reduce<Record<string, boolean>>(
+                  (acc, todo) => {
+                    acc[todo.id] = false;
+                    return acc;
+                  },
+                  {}
+                ),
+              }));
+            }
           }
 
           await Promise.all([
@@ -682,7 +840,13 @@ ref) {
         setActionLoadingId(null);
       }
     },
-    [actionLoadingId, fetchChallengeData, fetchGroupData, updateSelectedItemFromStore]
+    [
+      actionLoadingId,
+      fetchChallengeData,
+      fetchGroupData,
+      isTodoListComplete,
+      updateSelectedItemFromStore,
+    ]
   );
 
   const handleToggleLike = useCallback(
@@ -722,15 +886,34 @@ ref) {
   );
 
   const handleGroupChallengeStart = useCallback(
-    async (groupId: number, challengeId: number) => {
-      const loadingKey = `start-${groupId}-${challengeId}`;
+    async (
+      groupId: number,
+      challenge: ChallengeDTO,
+      todos: ChallengeTodoItem[]
+    ) => {
+      const loadingKey = `start-${groupId}-${challenge.id}`;
       if (detailActionLoadingId) {
         return;
       }
 
       setDetailActionLoadingId(loadingKey);
       try {
-        await challengeApi.startGroupChallenge({ groupId, challengeId });
+        await challengeApi.startGroupChallenge({
+          groupId,
+          challengeId: challenge.id,
+        });
+        if (todos.length > 0) {
+          setTodoCompletion((prev) => ({
+            ...prev,
+            [String(challenge.id)]: todos.reduce<Record<string, boolean>>(
+              (acc, todo) => {
+                acc[todo.id] = false;
+                return acc;
+              },
+              {}
+            ),
+          }));
+        }
         await Promise.all([
           loadGroupChallengeDetail(groupId),
           fetchChallengeData("available", { force: true }),
@@ -751,15 +934,38 @@ ref) {
   );
 
   const handleGroupChallengeComplete = useCallback(
-    async (groupId: number, challengeId: number) => {
-      const loadingKey = `complete-${groupId}-${challengeId}`;
+    async (
+      groupId: number,
+      challenge: ChallengeDTO,
+      todos: ChallengeTodoItem[]
+    ) => {
+      const loadingKey = `complete-${groupId}-${challenge.id}`;
       if (detailActionLoadingId) {
+        return;
+      }
+
+      if (todos.length > 0 && !isTodoListComplete(challenge.id, todos)) {
+        Alert.alert("확인 필요", "모든 TODO를 완료해야 챌린지를 종료할 수 있어요.");
         return;
       }
 
       setDetailActionLoadingId(loadingKey);
       try {
-        await challengeApi.completeGroupChallenge({ groupId, challengeId });
+        await challengeApi.completeGroupChallenge({
+          groupId,
+          challengeId: challenge.id,
+        });
+        if (todos.length > 0) {
+          setTodoCompletion((prev) => {
+            const key = String(challenge.id);
+            if (!(key in prev)) {
+              return prev;
+            }
+            const next = { ...prev };
+            delete next[key];
+            return next;
+          });
+        }
         await Promise.all([
           loadGroupChallengeDetail(groupId),
           fetchChallengeData("available", { force: true }),
@@ -776,7 +982,13 @@ ref) {
         setDetailActionLoadingId(null);
       }
     },
-    [detailActionLoadingId, fetchChallengeData, fetchGroupData, loadGroupChallengeDetail]
+    [
+      detailActionLoadingId,
+      fetchChallengeData,
+      fetchGroupData,
+      isTodoListComplete,
+      loadGroupChallengeDetail,
+    ]
   );
 
   const handleRefresh = useCallback(async () => {
@@ -815,6 +1027,114 @@ ref) {
     fetchChallengeData,
     fetchGroupData,
     groupFilter,
+  ]);
+
+  const handleSubmitGroupCreate = useCallback(async () => {
+    const trimmedName = groupNameInput.trim();
+    const trimmedIntro = groupIntroInput.trim();
+
+    if (!trimmedName) {
+      Alert.alert("확인 필요", "모임 이름을 입력해주세요.");
+      return;
+    }
+
+    try {
+      setGroupCreateLoading(true);
+      await groupApi.createGroup({
+        groupName: trimmedName,
+        groupIntroduction: trimmedIntro || undefined,
+      });
+
+      setGroupNameInput("");
+      setGroupIntroInput("");
+      setGroupCreateVisible(false);
+      await handleRefresh();
+    } catch (error) {
+      Alert.alert(
+        "오류",
+        getErrorMessage(error, "모임 생성 중 문제가 발생했습니다.")
+      );
+    } finally {
+      setGroupCreateLoading(false);
+    }
+  }, [groupNameInput, groupIntroInput, handleRefresh]);
+
+  const resetChallengeCreateForm = useCallback(() => {
+    setChallengeNameInput("");
+    setChallengeContentInput("");
+    setChallengeTodoInput("");
+    setChallengeTodoItems([]);
+  }, []);
+
+  const handleAddChallengeTodoItem = useCallback(() => {
+    const trimmed = challengeTodoInput.trim();
+
+    if (!trimmed) {
+      Alert.alert("확인 필요", "추가할 TODO 내용을 입력해주세요.");
+      return;
+    }
+
+    setChallengeTodoItems((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        text: trimmed,
+      },
+    ]);
+    setChallengeTodoInput("");
+  }, [challengeTodoInput]);
+
+  const handleRemoveChallengeTodoItem = useCallback((id: string) => {
+    setChallengeTodoItems((prev) => prev.filter((item) => item.id !== id));
+  }, []);
+
+  const handleSubmitChallengeCreate = useCallback(async () => {
+    const trimmedName = challengeNameInput.trim();
+    const trimmedDescription = challengeContentInput.trim();
+    const sanitizedTodos = challengeTodoItems
+      .map<ChallengeTodoItem>((item, index) => ({
+        id: item.id || `${index}`,
+        text: item.text.trim(),
+      }))
+      .filter((item) => item.text.length > 0);
+
+    if (!trimmedName) {
+      Alert.alert("확인 필요", "챌린지 이름을 입력해주세요.");
+      return;
+    }
+
+    if (sanitizedTodos.length === 0) {
+      Alert.alert("확인 필요", "최소 1개의 TODO 항목을 추가해주세요.");
+      return;
+    }
+
+    try {
+      setChallengeCreateLoading(true);
+      const contentPayload = encodeChallengeTodoContent(
+        sanitizedTodos,
+        {
+          description: trimmedDescription || null,
+          name: trimmedName,
+        }
+      );
+      await challengeApi.createChallenge({ content: contentPayload });
+      resetChallengeCreateForm();
+      setChallengeCreateVisible(false);
+      await handleRefresh();
+    } catch (error) {
+      Alert.alert(
+        "오류",
+        getErrorMessage(error, "챌린지 생성 중 문제가 발생했습니다.")
+      );
+    } finally {
+      setChallengeCreateLoading(false);
+    }
+  }, [
+    challengeNameInput,
+    challengeContentInput,
+    challengeTodoItems,
+    handleRefresh,
+    resetChallengeCreateForm,
   ]);
 
   const handleInsertSampleData = useCallback(async () => {
@@ -899,11 +1219,17 @@ ref) {
           : "시작하기";
 
       const isActionLoading = actionLoadingId === item.id;
+      const challengeTodos = item.todoItems ?? [];
+      const allTodosCompleted =
+        item.type === "challenge"
+          ? isTodoListComplete(item.id, challengeTodos)
+          : true;
       const shouldDisableAction =
         item.type === "group"
           ? item.isParticipating ||
             (actionLoadingId !== null && actionLoadingId !== item.id)
-          : actionLoadingId !== null && actionLoadingId !== item.id;
+          : (item.isParticipating && !allTodosCompleted) ||
+            (actionLoadingId !== null && actionLoadingId !== item.id);
       const shouldDisableLike = likeLoadingId !== null;
 
       return (
@@ -937,6 +1263,7 @@ ref) {
       handleActionPress,
       handleOpenDetail,
       handleToggleLike,
+      isTodoListComplete,
       likeLoadingId,
     ]
   );
@@ -950,6 +1277,22 @@ ref) {
   );
 
   const computedBottomPadding = Math.max(theme.spacing.md, bottomInset);
+  const selectedChallengeTodos =
+    selectedItem && selectedItem.type === "challenge"
+      ? selectedItem.todoItems ?? []
+      : [];
+  const selectedChallengeProgress =
+    selectedItem && selectedItem.type === "challenge"
+      ? getTodoProgress(selectedItem.id, selectedChallengeTodos)
+      : { completed: 0, total: 0 };
+  const selectedChallengeTodosCompleted =
+    selectedItem && selectedItem.type === "challenge"
+      ? isTodoListComplete(selectedItem.id, selectedChallengeTodos)
+      : true;
+  const selectedChallengeCompletionMap =
+    selectedItem && selectedItem.type === "challenge"
+      ? todoCompletion[selectedItem.id] ?? {}
+      : {};
 
   return (
     <View style={styles.container}>
@@ -1025,11 +1368,14 @@ ref) {
         <TouchableOpacity
           style={styles.createButton}
           activeOpacity={0.85}
-          onPress={() =>
-            activeCategory === "group"
-              ? setGroupCreateVisible(true)
-              : setChallengeCreateVisible(true)
-          }
+          onPress={() => {
+            if (activeCategory === "group") {
+              setGroupCreateVisible(true);
+            } else {
+              resetChallengeCreateForm();
+              setChallengeCreateVisible(true);
+            }
+          }}
         >
           <Text style={styles.createButtonText}>
             {activeCategory === "group" ? "＋ 모임 만들기" : "＋ 챌린지 만들기"}
@@ -1112,7 +1458,10 @@ ref) {
         visible={isChallengeCreateVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setChallengeCreateVisible(false)}
+        onRequestClose={() => {
+          resetChallengeCreateForm();
+          setChallengeCreateVisible(false);
+        }}
       >
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView
@@ -1121,17 +1470,77 @@ ref) {
           >
             <Text style={styles.modalTitle}>새 챌린지 만들기</Text>
             <TextInput
+              style={styles.modalInput}
+              placeholder="챌린지 이름을 입력하세요"
+              placeholderTextColor={theme.colors.gray[500]}
+              value={challengeNameInput}
+              onChangeText={setChallengeNameInput}
+              autoCapitalize="none"
+            />
+            <TextInput
               style={[styles.modalInput, styles.modalMultilineInput]}
-              placeholder="챌린지 내용을 입력하세요"
+              placeholder="챌린지 설명을 입력하세요 (선택)"
               placeholderTextColor={theme.colors.gray[500]}
               value={challengeContentInput}
               onChangeText={setChallengeContentInput}
               multiline
             />
+            <View style={styles.modalTodoSection}>
+              <Text style={styles.modalTodoLabel}>TODO 리스트</Text>
+              <View style={styles.modalTodoInputRow}>
+                <TextInput
+                  style={[styles.modalInput, styles.modalTodoInput]}
+                  placeholder="추가할 TODO 내용을 입력하세요"
+                  placeholderTextColor={theme.colors.gray[500]}
+                  value={challengeTodoInput}
+                  onChangeText={setChallengeTodoInput}
+                  returnKeyType="done"
+                  onSubmitEditing={handleAddChallengeTodoItem}
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.modalTodoAddButton,
+                    !challengeTodoInput.trim() && styles.modalTodoAddButtonDisabled,
+                  ]}
+                  onPress={handleAddChallengeTodoItem}
+                  disabled={!challengeTodoInput.trim() || challengeCreateLoading}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.modalTodoAddButtonText}>추가</Text>
+                </TouchableOpacity>
+              </View>
+              {challengeTodoItems.length === 0 ? (
+                <Text style={styles.modalTodoEmptyText}>
+                  TODO 항목을 추가해주세요.
+                </Text>
+              ) : (
+                <ScrollView
+                  style={styles.modalTodoList}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={styles.modalTodoListContent}
+                >
+                  {challengeTodoItems.map((todo) => (
+                    <View key={todo.id} style={styles.modalTodoListItem}>
+                      <Text style={styles.modalTodoListItemText}>{todo.text}</Text>
+                      <TouchableOpacity
+                        onPress={() => handleRemoveChallengeTodoItem(todo.id)}
+                        style={styles.modalTodoRemoveButton}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.modalTodoRemoveButtonText}>삭제</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonSecondary]}
-                onPress={() => setChallengeCreateVisible(false)}
+                onPress={() => {
+                  resetChallengeCreateForm();
+                  setChallengeCreateVisible(false);
+                }}
                 disabled={challengeCreateLoading}
               >
                 <Text style={styles.modalButtonSecondaryText}>취소</Text>
@@ -1161,6 +1570,15 @@ ref) {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.detailContainer}>
+            <TouchableOpacity
+              style={styles.detailCloseButton}
+              onPress={closeDetail}
+              accessibilityRole="button"
+              accessibilityLabel="닫기"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <IconSymbol name="xmark" size={20} color={theme.colors.gray[700]} />
+            </TouchableOpacity>
             <ScrollView
               contentContainerStyle={styles.detailContent}
               showsVerticalScrollIndicator={false}
@@ -1175,8 +1593,26 @@ ref) {
               {selectedItem?.type === "group" ? (
                 <>
                   <View style={styles.detailStatsRow}>
-                    <Text style={styles.detailStat}>👥 {selectedItem.participants}</Text>
-                    <Text style={styles.detailStat}>❤️ {selectedItem.likes}</Text>
+                    <View style={styles.detailStatItem}>
+                      <View style={styles.detailStatIcon}>
+                        <PersonIcon
+                          width={16}
+                          height={16}
+                          fill={theme.colors.gray[500]}
+                        />
+                      </View>
+                      <Text style={styles.detailStatText}>{selectedItem.participants}</Text>
+                    </View>
+                    <View style={styles.detailStatItem}>
+                      <View style={styles.detailStatIcon}>
+                        <HeartIcon
+                          width={16}
+                          height={16}
+                          fill={theme.colors.gray[500]}
+                        />
+                      </View>
+                      <Text style={styles.detailStatText}>{selectedItem.likes}</Text>
+                    </View>
                   </View>
 
                   <View style={styles.detailActionsRow}>
@@ -1208,100 +1644,298 @@ ref) {
                     </TouchableOpacity>
                   </View>
 
-                  <View style={styles.detailSection}>
-                    <Text style={styles.detailSectionTitle}>적용 가능한 챌린지</Text>
-                    {detailLoading ? (
-                      <ActivityIndicator size="small" color={theme.colors.primary} />
-                    ) : detailError ? (
-                      <Text style={styles.detailErrorText}>{detailError}</Text>
-                    ) : detailAvailableChallenges.length === 0 ? (
-                      <Text style={styles.detailEmptyText}>적용 가능한 챌린지가 없습니다.</Text>
-                    ) : (
-                      detailAvailableChallenges.map((challenge) => {
-                        const loadingKey = `start-${selectedItem?.sourceId}-${challenge.id}`;
-                        return (
-                          <View key={challenge.id} style={styles.detailChallengeItem}>
-                            <View style={styles.detailChallengeInfo}>
-                              <Text style={styles.detailChallengeTitle}>{challenge.challengeName}</Text>
-                              {challenge.challengeIntroduction ? (
-                                <Text style={styles.detailChallengeDescription}>
-                                  {challenge.challengeIntroduction}
-                                </Text>
-                              ) : null}
-                            </View>
-                            <TouchableOpacity
-                              style={[styles.detailButton, styles.detailPrimaryButton]}
-                              onPress={() =>
-                                handleGroupChallengeStart(
-                                  selectedItem!.sourceId,
-                                  challenge.id
-                                )
-                              }
-                              disabled={detailActionLoadingId === loadingKey}
-                            >
-                              {detailActionLoadingId === loadingKey ? (
-                                <ActivityIndicator size="small" color={theme.colors.white} />
-                              ) : (
-                                <Text style={styles.detailButtonText}>시작하기</Text>
-                              )}
-                            </TouchableOpacity>
-                          </View>
-                        );
-                      })
-                    )}
-                  </View>
+                  {selectedItem.isParticipating ? (
+                    <>
+                      <View style={styles.detailSection}>
+                        <Text style={styles.detailSectionTitle}>적용 가능한 챌린지</Text>
+                        {detailLoading ? (
+                          <ActivityIndicator size="small" color={theme.colors.primary} />
+                        ) : detailError ? (
+                          <Text style={styles.detailErrorText}>{detailError}</Text>
+                        ) : detailAvailableChallenges.length === 0 ? (
+                          <Text style={styles.detailEmptyText}>적용 가능한 챌린지가 없습니다.</Text>
+                        ) : (
+                          detailAvailableChallenges.map((challenge) => {
+                            const loadingKey = `start-${selectedItem?.sourceId}-${challenge.id}`;
+                            const todoData = extractTodoData(challenge);
+                            const parsed = todoData?.parsed ?? null;
+                            const todos = parsed?.items ?? [];
+                            const challengeTitle = deriveChallengeTitle(
+                              challenge,
+                              parsed?.name ?? null
+                            );
+                            const summary = deriveChallengeSummary(
+                              challenge,
+                              parsed,
+                              todoData?.source
+                            );
+                            return (
+                              <View key={challenge.id} style={styles.detailChallengeItem}>
+                                <View style={styles.detailChallengeInfo}>
+                                  <Text style={styles.detailChallengeTitle}>{challengeTitle}</Text>
+                                  {summary ? (
+                                    <Text style={styles.detailChallengeDescription}>
+                                      {summary}
+                                    </Text>
+                                  ) : null}
+                                  {todos.length > 0 ? (
+                                    <View style={styles.detailTodoPreview}>
+                                      {todos.slice(0, 3).map((todo) => (
+                                        <View key={todo.id} style={styles.detailTodoPreviewItem}>
+                                          <View style={styles.detailTodoBullet} />
+                                          <Text style={styles.detailTodoText}>{todo.text}</Text>
+                                        </View>
+                                      ))}
+                                      {todos.length > 3 ? (
+                                        <Text style={styles.detailTodoMoreText}>
+                                          외 {todos.length - 3}개 TODO
+                                        </Text>
+                                      ) : null}
+                                    </View>
+                                  ) : null}
+                                </View>
+                                <TouchableOpacity
+                                  style={[styles.detailButton, styles.detailPrimaryButton]}
+                                  onPress={() =>
+                                    handleGroupChallengeStart(
+                                      selectedItem!.sourceId,
+                                      challenge,
+                                      todos
+                                    )
+                                  }
+                                  disabled={detailActionLoadingId === loadingKey}
+                                >
+                                  {detailActionLoadingId === loadingKey ? (
+                                    <ActivityIndicator size="small" color={theme.colors.white} />
+                                  ) : (
+                                    <Text style={styles.detailButtonText}>시작하기</Text>
+                                  )}
+                                </TouchableOpacity>
+                              </View>
+                            );
+                          })
+                        )}
+                      </View>
 
-                  <View style={styles.detailSection}>
-                    <Text style={styles.detailSectionTitle}>진행중인 챌린지</Text>
-                    {detailParticipatingChallenges.length === 0 ? (
-                      <Text style={styles.detailEmptyText}>진행중인 챌린지가 없습니다.</Text>
-                    ) : (
-                      detailParticipatingChallenges.map((challenge) => {
-                        const loadingKey = `complete-${selectedItem?.sourceId}-${challenge.id}`;
-                        return (
-                          <View key={challenge.id} style={styles.detailChallengeItem}>
-                            <View style={styles.detailChallengeInfo}>
-                              <Text style={styles.detailChallengeTitle}>{challenge.challengeName}</Text>
-                              {challenge.challengeIntroduction ? (
-                                <Text style={styles.detailChallengeDescription}>
-                                  {challenge.challengeIntroduction}
-                                </Text>
-                              ) : null}
-                            </View>
-                            <TouchableOpacity
-                              style={[styles.detailButton, styles.detailPrimaryButton]}
-                              onPress={() =>
-                                handleGroupChallengeComplete(
-                                  selectedItem!.sourceId,
-                                  challenge.id
-                                )
-                              }
-                              disabled={detailActionLoadingId === loadingKey}
-                            >
-                              {detailActionLoadingId === loadingKey ? (
-                                <ActivityIndicator size="small" color={theme.colors.white} />
-                              ) : (
-                                <Text style={styles.detailButtonText}>완료하기</Text>
-                              )}
-                            </TouchableOpacity>
-                          </View>
-                        );
-                      })
-                    )}
-                  </View>
+                      <View style={styles.detailSection}>
+                        <Text style={styles.detailSectionTitle}>진행중인 챌린지</Text>
+                        {detailParticipatingChallenges.length === 0 ? (
+                          <Text style={styles.detailEmptyText}>진행중인 챌린지가 없습니다.</Text>
+                        ) : (
+                          detailParticipatingChallenges.map((challenge) => {
+                            const loadingKey = `complete-${selectedItem?.sourceId}-${challenge.id}`;
+                            const todoData = extractTodoData(challenge);
+                            const parsed = todoData?.parsed ?? null;
+                            const todos = parsed?.items ?? [];
+                            const challengeTitle = deriveChallengeTitle(
+                              challenge,
+                              parsed?.name ?? null
+                            );
+                            const summary = deriveChallengeSummary(
+                              challenge,
+                              parsed,
+                              todoData?.source
+                            );
+                            const completionMap = todoCompletion[String(challenge.id)] ?? {};
+                            const progress = getTodoProgress(challenge.id, todos);
+                            const allCompleted = isTodoListComplete(challenge.id, todos);
+                            return (
+                              <View key={challenge.id} style={styles.detailChallengeItem}>
+                                <View style={styles.detailChallengeInfo}>
+                                  <Text style={styles.detailChallengeTitle}>{challengeTitle}</Text>
+                                  {summary ? (
+                                    <Text style={styles.detailChallengeDescription}>
+                                      {summary}
+                                    </Text>
+                                  ) : null}
+                                  {todos.length > 0 ? (
+                                    <View style={styles.detailTodoSection}>
+                                      <View style={styles.detailTodoHeader}>
+                                        <Text style={styles.detailTodoProgress}>
+                                          {progress.completed}/{progress.total} 완료
+                                        </Text>
+                                      </View>
+                                      {todos.map((todo) => {
+                                        const isCompleted = Boolean(completionMap[todo.id]);
+                                        return (
+                                          <TouchableOpacity
+                                            key={todo.id}
+                                            style={styles.detailTodoItem}
+                                            onPress={() =>
+                                              toggleTodoCompletion(challenge.id, todo.id)
+                                            }
+                                            activeOpacity={0.8}
+                                          >
+                                            <View
+                                              style={[
+                                                styles.todoCheckbox,
+                                                isCompleted && styles.todoCheckboxCompleted,
+                                              ]}
+                                            >
+                                              {isCompleted ? (
+                                                <IconSymbol
+                                                  name="checkmark"
+                                                  size={14}
+                                                  color={theme.colors.white}
+                                                />
+                                              ) : null}
+                                            </View>
+                                            <Text
+                                              style={[
+                                                styles.todoItemText,
+                                                isCompleted && styles.todoItemTextCompleted,
+                                              ]}
+                                            >
+                                              {todo.text}
+                                            </Text>
+                                          </TouchableOpacity>
+                                        );
+                                      })}
+                                      {!allCompleted ? (
+                                        <Text style={styles.todoHintText}>
+                                          모든 TODO를 완료해야 챌린지를 종료할 수 있어요.
+                                        </Text>
+                                      ) : null}
+                                    </View>
+                                  ) : null}
+                                </View>
+                                <TouchableOpacity
+                                  style={[styles.detailButton, styles.detailPrimaryButton]}
+                                  onPress={() =>
+                                    handleGroupChallengeComplete(
+                                      selectedItem!.sourceId,
+                                      challenge,
+                                      todos
+                                    )
+                                  }
+                                  disabled={
+                                    detailActionLoadingId === loadingKey || !allCompleted
+                                  }
+                                >
+                                  {detailActionLoadingId === loadingKey ? (
+                                    <ActivityIndicator size="small" color={theme.colors.white} />
+                                  ) : (
+                                    <Text style={styles.detailButtonText}>완료하기</Text>
+                                  )}
+                                </TouchableOpacity>
+                              </View>
+                            );
+                          })
+                        )}
+                      </View>
+                    </>
+                  ) : null}
                 </>
               ) : selectedItem ? (
                 <>
                   <View style={styles.detailStatsRow}>
-                    <Text style={styles.detailStat}>👥 {selectedItem.participants}</Text>
-                    <Text style={styles.detailStat}>❤️ {selectedItem.likes}</Text>
+                    <View style={styles.detailStatItem}>
+                      <View style={styles.detailStatIcon}>
+                        <PersonIcon
+                          width={16}
+                          height={16}
+                          fill={theme.colors.gray[500]}
+                        />
+                      </View>
+                      <Text style={styles.detailStatText}>{selectedItem.participants}</Text>
+                    </View>
+                    <View style={styles.detailStatItem}>
+                      <View style={styles.detailStatIcon}>
+                        <HeartIcon
+                          width={16}
+                          height={16}
+                          fill={theme.colors.gray[500]}
+                        />
+                      </View>
+                      <Text style={styles.detailStatText}>{selectedItem.likes}</Text>
+                    </View>
                   </View>
+
+                  {selectedItem.isTodoFormat ? (
+                    <View style={styles.todoSection}>
+                      <View style={styles.todoHeader}>
+                        <Text style={styles.todoSectionTitle}>TODO 리스트</Text>
+                        {selectedChallengeTodos.length > 0 ? (
+                          <Text style={styles.todoProgressText}>
+                            {selectedChallengeProgress.completed}/
+                            {selectedChallengeProgress.total} 완료
+                          </Text>
+                        ) : null}
+                      </View>
+                      {selectedItem.todoDescription ? (
+                        <Text style={styles.todoSectionDescription}>
+                          {selectedItem.todoDescription}
+                        </Text>
+                      ) : null}
+                      {selectedChallengeTodos.length === 0 ? (
+                        <Text style={styles.todoEmptyText}>
+                          등록된 TODO가 없습니다.
+                        </Text>
+                      ) : (
+                        selectedChallengeTodos.map((todo) => {
+                          const isCompleted = Boolean(
+                            selectedChallengeCompletionMap[todo.id]
+                          );
+                          const isInteractive = selectedItem.isParticipating;
+                          return (
+                            <TouchableOpacity
+                              key={todo.id}
+                              style={styles.todoItem}
+                              activeOpacity={isInteractive ? 0.8 : 1}
+                              onPress={
+                                isInteractive
+                                  ? () => toggleTodoCompletion(selectedItem.id, todo.id)
+                                  : undefined
+                              }
+                            >
+                              <View
+                                style={[
+                                  styles.todoCheckbox,
+                                  isCompleted && styles.todoCheckboxCompleted,
+                                ]}
+                              >
+                                {isCompleted ? (
+                                  <IconSymbol
+                                    name="checkmark"
+                                    size={14}
+                                    color={theme.colors.white}
+                                  />
+                                ) : null}
+                              </View>
+                              <Text
+                                style={[
+                                  styles.todoItemText,
+                                  isCompleted && styles.todoItemTextCompleted,
+                                ]}
+                              >
+                                {todo.text}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })
+                      )}
+                      {selectedItem.isParticipating && !selectedChallengeTodosCompleted ? (
+                        <Text style={styles.todoHintText}>
+                          모든 TODO를 완료하면 챌린지를 종료할 수 있어요.
+                        </Text>
+                      ) : null}
+                    </View>
+                  ) : null}
 
                   <View style={styles.detailActionsRow}>
                     <TouchableOpacity
-                      style={[styles.detailButton, styles.detailPrimaryButton]}
+                      style={[
+                        styles.detailButton,
+                        styles.detailPrimaryButton,
+                        selectedItem.isParticipating &&
+                          !selectedChallengeTodosCompleted &&
+                          styles.detailButtonDisabled,
+                      ]}
                       onPress={() => handleActionPress(selectedItem)}
-                      disabled={actionLoadingId === selectedItem.id}
+                      disabled={
+                        actionLoadingId === selectedItem.id ||
+                        (selectedItem.isParticipating && !selectedChallengeTodosCompleted)
+                      }
                     >
                       {actionLoadingId === selectedItem.id ? (
                         <ActivityIndicator size="small" color={theme.colors.white} />
@@ -1326,13 +1960,6 @@ ref) {
                 </>
               ) : null}
             </ScrollView>
-
-            <TouchableOpacity
-              style={[styles.modalButton, styles.modalButtonSecondary]}
-              onPress={closeDetail}
-            >
-              <Text style={styles.modalButtonSecondaryText}>닫기</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1536,6 +2163,15 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
     gap: theme.spacing.md,
   },
+  detailCloseButton: {
+    position: "absolute",
+    top: theme.spacing.sm,
+    right: theme.spacing.sm,
+    padding: theme.spacing.xs,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.gray[100],
+    zIndex: 1,
+  },
   detailContent: {
     gap: theme.spacing.md,
   },
@@ -1550,11 +2186,25 @@ const styles = StyleSheet.create({
   },
   detailStatsRow: {
     flexDirection: "row",
+    alignItems: "center",
     gap: theme.spacing.lg,
   },
-  detailStat: {
+  detailStatItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.xs,
+  },
+  detailStatIcon: {
+    width: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  detailStatText: {
     fontSize: theme.typography.body.fontSize,
     color: theme.colors.text,
+    minWidth: 28,
+    textAlign: "left",
   },
   detailActionsRow: {
     flexDirection: "row",
@@ -1612,5 +2262,182 @@ const styles = StyleSheet.create({
   detailChallengeDescription: {
     fontSize: theme.typography.caption.fontSize,
     color: theme.colors.gray[500],
+  },
+  detailButtonDisabled: {
+    opacity: 0.6,
+  },
+  modalTodoSection: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.gray[200],
+    borderRadius: theme.borderRadius.sm,
+    padding: theme.spacing.sm,
+    gap: theme.spacing.sm,
+    backgroundColor: theme.colors.gray[100],
+  },
+  modalTodoLabel: {
+    fontSize: theme.typography.body.fontSize,
+    fontWeight: "600",
+    color: theme.colors.text,
+  },
+  modalTodoInputRow: {
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+    alignItems: "center",
+  },
+  modalTodoInput: {
+    flex: 1,
+  },
+  modalTodoAddButton: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.primary,
+  },
+  modalTodoAddButtonDisabled: {
+    backgroundColor: theme.colors.gray[300],
+  },
+  modalTodoAddButtonText: {
+    color: theme.colors.white,
+    fontWeight: "600",
+  },
+  modalTodoEmptyText: {
+    fontSize: theme.typography.caption.fontSize,
+    color: theme.colors.gray[500],
+  },
+  modalTodoList: {
+    maxHeight: 180,
+  },
+  modalTodoListContent: {
+    gap: theme.spacing.xs,
+  },
+  modalTodoListItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.white,
+  },
+  modalTodoListItemText: {
+    flex: 1,
+    marginRight: theme.spacing.sm,
+    color: theme.colors.text,
+  },
+  modalTodoRemoveButton: {
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: theme.spacing.xs / 2,
+  },
+  modalTodoRemoveButtonText: {
+    color: theme.colors.error,
+    fontSize: theme.typography.caption.fontSize,
+    fontWeight: "600",
+  },
+  todoSection: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.gray[200],
+    borderRadius: theme.borderRadius.sm,
+    padding: theme.spacing.sm,
+    gap: theme.spacing.sm,
+    backgroundColor: theme.colors.gray[100],
+  },
+  todoHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  todoSectionTitle: {
+    fontSize: theme.typography.body.fontSize,
+    fontWeight: "600",
+    color: theme.colors.text,
+  },
+  todoProgressText: {
+    fontSize: theme.typography.caption.fontSize,
+    color: theme.colors.gray[500],
+  },
+  todoSectionDescription: {
+    fontSize: theme.typography.caption.fontSize,
+    color: theme.colors.gray[500],
+  },
+  todoEmptyText: {
+    fontSize: theme.typography.caption.fontSize,
+    color: theme.colors.gray[500],
+  },
+  todoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+  },
+  todoCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.gray[300],
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.white,
+  },
+  todoCheckboxCompleted: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  todoItemText: {
+    flex: 1,
+    color: theme.colors.text,
+  },
+  todoItemTextCompleted: {
+    color: theme.colors.gray[500],
+    textDecorationLine: "line-through",
+  },
+  todoHintText: {
+    fontSize: theme.typography.caption.fontSize,
+    color: theme.colors.gray[500],
+  },
+  detailTodoPreview: {
+    marginTop: theme.spacing.xs,
+    gap: theme.spacing.xs,
+  },
+  detailTodoPreviewItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.xs,
+  },
+  detailTodoBullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.primary,
+  },
+  detailTodoText: {
+    fontSize: theme.typography.caption.fontSize,
+    color: theme.colors.gray[500],
+    flex: 1,
+  },
+  detailTodoMoreText: {
+    fontSize: theme.typography.caption.fontSize,
+    color: theme.colors.gray[500],
+    marginTop: theme.spacing.xs / 2,
+  },
+  detailTodoSection: {
+    marginTop: theme.spacing.xs,
+    gap: theme.spacing.xs,
+  },
+  detailTodoHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  detailTodoProgress: {
+    fontSize: theme.typography.caption.fontSize,
+    color: theme.colors.gray[500],
+    fontWeight: "600",
+  },
+  detailTodoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
   },
 });
