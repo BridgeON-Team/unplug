@@ -22,10 +22,9 @@
       "package": "com.bridgeon.unplug",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#335FEE"
       },
-      "edgeToEdgeEnabled": true,
-      "usesCleartextTraffic": true
+      "edgeToEdgeEnabled": true
     },
     "web": {
       "bundler": "metro",
@@ -40,7 +39,15 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#335FEE"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
         }
       ]
     ],
